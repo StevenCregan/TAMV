@@ -997,6 +997,7 @@ class CalibrateNozzles(QThread):
                     self.frame = self.putText(self.frame,'No circles found',offsety=3)
                     self.message_update.emit( 'No circles found.' )
                     local_img = self.frame
+                    self.crosshair_display.emit(False)
                     self.change_pixmap_signal.emit(local_img)
                 continue
             if (num_keypoints > 1):
@@ -1004,8 +1005,9 @@ class CalibrateNozzles(QThread):
                     _logger.debug( 'Too many circles found.' )
                     self.message_update.emit( 'Too many circles found. Please stop and clean the nozzle.' )
                     self.frame = self.putText(self.frame,'Too many circles found '+str(num_keypoints),offsety=3, color=(255,255,255))
-                    self.frame = cv2.drawKeypoints(self.frame, keypoints, np.array([]), (255,255,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+                    self.frame = self.drawKeypoints(self.frame, keypointsArray=keypoints, color=(0,255,255) )
                     local_img = self.frame
+                    self.crosshair_display.emit(False)
                     self.change_pixmap_signal.emit(local_img)
                 continue
             # Found one and only one circle.  Put it on the frame.
@@ -1015,11 +1017,12 @@ class CalibrateNozzles(QThread):
             r = np.around(keypoints[0].size/2)
             # draw the blobs that look circular
             _logger.debug( 'Drawing keypoints.' )
-            self.frame = cv2.drawKeypoints(self.frame, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            self.frame = self.drawKeypoints(self.frame, keypointsArray=keypoints, color=(255,0, 0) )
             # Note its radius and position
             ts =  'U{0:3.0f} V{1:3.0f} R{2:2.0f}'.format(xy[0],xy[1],r)
             xy = np.uint16(xy)
             #self.frame = self.putText(self.frame, ts, offsety=2, color=(0, 255, 0), stroke=2)
+            self.crosshair_display.emit(True)
             self.message_update.emit(ts)
             # show the frame
             _logger.debug( 'Displaying detected nozzle.' )
@@ -1036,6 +1039,27 @@ class CalibrateNozzles(QThread):
             _logger.debug( 'AnaylzeFrame completed.' )
             return
 
+    def drawKeypoints( self, img, keypointsArray, color=(0,0,255) ):
+        originalFrame = img.copy()
+        for interest in keypointsArray:
+            (x,y) = np.around(interest.pt)
+            x = int(x)
+            y = int(y)
+            r = int(interest.size/2)
+            # draw the blobs that look circular
+            circles = cv2.circle(
+                originalFrame, 
+                ( x, y ),
+                r, 
+                color,
+                -1
+            )
+            img = cv2.addWeighted(circles, 0.4, img, 0.6, 0)
+            img = cv2.circle( img, ( x, y ), r, (0,0,0), 1 )
+            img = cv2.line( img, (x-5, y), (x+5, y), ( 255, 255, 255 ), 2 )
+            img = cv2.line( img, (x, y-5), (x, y+5), ( 255, 255, 255 ), 2 )
+        return( img )
+    
     def analyzeEndstop(self):
         # Placeholder coordinates
         xy = [0,0]
@@ -1431,7 +1455,7 @@ class CalibrateNozzles(QThread):
         bottomLeftX = int(offsetx * offpix[0][0]) + int(frame.shape[1]/2) - int(textpix[0][0]/2)
         bottomLeftY = int(offsety * offpix[0][1]) + int(frame.shape[0]/2) + int(textpix[0][1]/2)
         rectangle = frame.copy()
-        rectangle = cv2.rectangle( rectangle, (bottomLeftX-5, bottomLeftY+5), ( bottomLeftX+textpix[0][0]+5, bottomLeftY-textpix[0][1]-5 ), (255,255,255), -1 )
+        rectangle = cv2.rectangle( rectangle, (bottomLeftX-5, bottomLeftY+5), ( bottomLeftX+textpix[0][0]+5, bottomLeftY-textpix[0][1]-5 ), (255-color[0],255-color[1],255-color[2]), -1 )
         frame = cv2.addWeighted(rectangle, 0.8, frame, 0.2, 0)
         cv2.putText(frame, text, (bottomLeftX, bottomLeftY),
             cv2.FONT_HERSHEY_SIMPLEX, fontScale, color, stroke)
@@ -1481,6 +1505,9 @@ class App(QMainWindow):
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
         self.setWindowIcon(QIcon( 'jubilee.png' ))
+        # load standby image
+        self.standbyImage = QPixmap('./standby.jpg')
+
         global display_width, display_height
         screen = QDesktopWidget().availableGeometry()
         self.small_display = False
@@ -2443,6 +2470,7 @@ class App(QMainWindow):
             msg = QMessageBox()
             status = msg.question( self, 'Unload ' + sender.text(), 'Unload ' + sender.text() + ' and return carriage to the current position?',QMessageBox.Yes | QMessageBox.No  )
             if status == QMessageBox.Yes:
+                self.displayStandby()
                 self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
                 if len(self.cp_coords) > 0:
                     self.printer.unloadTools()
@@ -2457,12 +2485,12 @@ class App(QMainWindow):
                     self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 # End video threads and restart default thread
                 self.video_thread.alignment = False
-
                 # Update GUI for unloading carriage
                 self.calibration_button.setDisabled(False)
                 self.cp_button.setDisabled(False)
                 self.updateMessagebar( 'Ready.' )
                 self.updateStatusbar( 'Ready.' )
+                self.displayToolLoaded(tool=-1)
             else:
                 # User cancelled, do nothing
                 return
@@ -2472,6 +2500,7 @@ class App(QMainWindow):
             status = msg.question( self, 'Confirm loading ' + sender.text(), 'Load ' + sender.text() + ' and move to current position?',QMessageBox.Yes | QMessageBox.No  )
             
             if status == QMessageBox.Yes:
+                self.displayStandby()
                 # return carriage to control point position
                 if len(self.cp_coords) > 0:
                     self.printer.unloadTools()
@@ -2498,9 +2527,30 @@ class App(QMainWindow):
                 self.panel_box.setCurrentIndex(0)
                 self.calibration_button.setDisabled(True)
                 self.repeatSpinBox.setDisabled(True)
-
+                self.displayToolLoaded(tool=int(sender.text()[1:]))
             else:
                 self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
+        app.processEvents()
+
+    # Display standby placeholder
+    def displayStandby( self ):
+        self.image_label.setPixmap(self.standbyImage)
+        standbyMessage = 'Changing tools, please stand by..'
+        self.updateStatusbar( standbyMessage )
+        self.image_label.setText( standbyMessage )
+        app.processEvents()
+        return
+
+    # update GUI after loading tool
+    def displayToolLoaded( self, tool ):
+        if( tool == -1 ):
+            standbyMessage = 'Tools unloaded from machine.'
+        else:
+            standbyMessage = 'T' + str(tool) + ' loaded.'
+        self.updateStatusbar( standbyMessage )
+        self.image_label.setText( standbyMessage )
+        app.processEvents()
+        return
 
     def checkMachine(self):
         if( self.printer.isHomed() is False ):
@@ -3084,7 +3134,7 @@ class App(QMainWindow):
         #self.mutex.lock()
         self.current_frame = cv_img
         # Draw crosshair alignment circle on image if required
-        if self.crosshair or self.crosshair_alignment:
+        if( self.crosshair or self.crosshair_alignment ):
             alpha = 0.8
             beta = 1-alpha
             center = ( int(camera_width/2), int(camera_height/2) )
@@ -3125,7 +3175,7 @@ class App(QMainWindow):
         self.cp_coords = newCoords
         self.cp_string = '( ' + str(self.cp_coords['X']) + ', ' + str(self.cp_coords['Y']) + ' )'
         self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
-
+    
     def convert_cv_qt(self, cv_img):
         # Convert from an opencv image to QPixmap
         rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
