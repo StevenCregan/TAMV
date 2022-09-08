@@ -6,6 +6,7 @@
 # to issue commands or return specific information. Feel free to extend with new
 # methods for other information; please keep the abstraction for V2 V3 
 #
+# Copyright (C) 2020 Danal Estes all rights reserved.
 # Copyright (C) 2022 Haytham Bennani
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
