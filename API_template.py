@@ -540,47 +540,27 @@ class MyDriverAPI:
 
     def gCode(self,command):
         _logger.debug('gCode called')
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
-            r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
-            
-            # Send reply to clear buffer
-            replyURL = (f'{self._base_url}'+'/rr_reply')
-            r2 = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
-
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/code/')
-            r = self.requests.post(URL, data=command)
-        if (r.ok):
+        ##############*** YOUR CUSTOM CODE #################
+        ##############*** YOUR CUSTOM CODE #################
+        if (ok):
             return 0
         else:
-            _logger.error("Error running gCode command: return code " + str(r.status_code) + ' - ' + str(r.reason))
-            raise SystemExit("Error running gCode command: return code " + str(r.status_code) + ' - ' + str(r.reason))
+            _logger.error("Error running gCode command")
+            raise SystemExit("Error running gCode command")
         return -1
     
     def gCodeBatch(self,commands):
-        if( self.pt == 2 ): 
-            # Start session to speed things up
-            replyURL = (f'{self._base_url}'+'/rr_connect')
-            r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
-            
+        _logger.debug('gCode called')
+        ##############*** YOUR CUSTOM CODE #################
         for command in commands:
-            if (self.pt == 2):
-                URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
-                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
-                # Send reply to clear buffer
-                replyURL = (f'{self._base_url}'+'/rr_reply')
-                r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
-            if (self.pt == 3):
-                URL=(f'{self._base_url}'+'/machine/code/')
-                r = self.requests.post(URL, data=command)
-            if not (r.ok):
-                _logger.Error("Error in gCodeBatch command: " + str(r.status_code) + str(r.reason) )
-
-        if( self.pt == 2 ):
-            #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-            endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-            r = self.session.get(endsessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
+            self.gCode(command)
+        ##############*** YOUR CUSTOM CODE #################
+        if (ok):
+            return 0
+        else:
+            _logger.error("Error running gCode command")
+            raise SystemExit("Error running gCode command")
+        return -1
 
     ### DO NOT EDIT BEYOND THIS LINE ###
     #################################################################################################################################
@@ -606,7 +586,7 @@ class MyDriverAPI:
 
     #################################################################################################################################
     #################################################################################################################################
-    # ZTATP Core atomimc class functions
+    # ZTATP Core atomic class functions
     #
     # These are critical functions used by ZTATP to set up probes, check for odd RRF versions that have unique syntax requirements,
     # and are use to set/rest config file changes for the endstops to ensure correct operation of the ZTATP alignment scripts.
