@@ -27,13 +27,13 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
+    # QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
-    QMenuBar,
+    # QMenuBar,
     QMessageBox,
     QPushButton,
     QButtonGroup,
@@ -42,7 +42,9 @@ from PyQt5.QtWidgets import (
     QStatusBar,
     QStyle,
     QTabWidget,
-    QTableWidget,
+    # QTableWidget,
+    QSpacerItem,
+    QSizePolicy,
     QTableWidgetItem,
     QTextEdit,
     QVBoxLayout,
@@ -1413,7 +1415,7 @@ class CalibrateNozzles(QThread):
         # apply gamma correction using the lookup table
         return cv2.LUT(image, table)
 
-    def putText(self, frame,text,color=(0, 0, 255),offsetx=0,offsety=0,stroke=1):  # Offsets are in character box size in pixels. 
+    def putText(self, frame, text,color=(0, 0, 255), offsetx=0, offsety=0, stroke=2):  # Offsets are in character box size in pixels. 
         if (text == 'timestamp' ): text = datetime.datetime.now().strftime( '%m-%d-%Y %H:%M:%S' )
         fontScale = 1
         if (frame.shape[1] > 640): fontScale = stroke = 2
@@ -1425,10 +1427,13 @@ class CalibrateNozzles(QThread):
         offsety=max(offsety, (-frame.shape[0]/2 + offpix[0][1])/offpix[0][1]) # Let offsety -99 be top row
         offsetx=max(offsetx, (-frame.shape[1]/2 + offpix[0][0])/offpix[0][0]) # Let offsetx -99 be left edge
         offsety=min(offsety,  (frame.shape[0]/2 - offpix[0][1])/offpix[0][1]) # Let offsety  99 be bottom row. 
-        offsetx=min(offsetx,  (frame.shape[1]/2 - offpix[0][0])/offpix[0][0]) # Let offsetx  99 be right edge. 
-        cv2.putText(frame, text, 
-            (int(offsetx * offpix[0][0]) + int(frame.shape[1]/2) - int(textpix[0][0]/2)
-            ,int(offsety * offpix[0][1]) + int(frame.shape[0]/2) + int(textpix[0][1]/2)),
+        offsetx=min(offsetx,  (frame.shape[1]/2 - offpix[0][0])/offpix[0][0]) # Let offsetx  99 be right edge.
+        bottomLeftX = int(offsetx * offpix[0][0]) + int(frame.shape[1]/2) - int(textpix[0][0]/2)
+        bottomLeftY = int(offsety * offpix[0][1]) + int(frame.shape[0]/2) + int(textpix[0][1]/2)
+        rectangle = frame.copy()
+        rectangle = cv2.rectangle( rectangle, (bottomLeftX-5, bottomLeftY+5), ( bottomLeftX+textpix[0][0]+5, bottomLeftY-textpix[0][1]-5 ), (255,255,255), -1 )
+        frame = cv2.addWeighted(rectangle, 0.8, frame, 0.2, 0)
+        cv2.putText(frame, text, (bottomLeftX, bottomLeftY),
             cv2.FONT_HERSHEY_SIMPLEX, fontScale, color, stroke)
         return(frame)
 
@@ -1543,6 +1548,7 @@ class App(QMainWindow):
         # create the label that holds the image
         self.image_label = OverlayLabel()
         self.image_label.setFixedSize( display_width, display_height )
+        self.image_label.setScaledContents(True)
         pixmap = QPixmap( display_width, display_height )
         self.image_label.setPixmap(pixmap)
         
@@ -1579,45 +1585,64 @@ class App(QMainWindow):
         # grid.setColumnStretch(0,1.2)
         ################################################### ELEMENT POSITIONING ###################################################
         # row, col, rowSpan, colSpan, alignment
+
+        ###################################################
+        # Spacers        
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 0, 1 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 7+2, 1 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 0 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 7+2 )
+
+        ###################################################
+        # First container
+        
         # connect button
-        grid.addWidget( self.connection_button,     0,  0,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.connection_button,     1,  1,  1,  1,  Qt.AlignLeft )
         # detect checkbox
-        grid.addWidget( self.detect_box,            0,  1,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.detect_box,            1,  2,  1,  1,  Qt.AlignLeft )
         # xray checkbox
-        grid.addWidget( self.xray_box,              0,  2,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.xray_box,              1,  3,  1,  1,  Qt.AlignLeft )
         # loose detection checkbox
-        grid.addWidget( self.loose_box,             0,  3,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.loose_box,             1,  4,  1,  1,  Qt.AlignLeft )
         # Alternative algorithm checkbox
-        grid.addWidget( self.algorithm_box,         0,  4,  1,  -1,  Qt.AlignLeft )
+        grid.addWidget( self.algorithm_box,         1,  6,  1,  -1,  Qt.AlignLeft )
         # disconnect button
-        grid.addWidget( self.disconnection_button,  0,  6,  1,  1, Qt.AlignCenter )
-        ###########################################################################################################################
+        grid.addWidget( self.disconnection_button,  1,  7,  1,  1, Qt.AlignCenter )
+        
+        
+        ###################################################
+        # Second container
+        
         # main image viewer
-        grid.addWidget( self.image_label,           1,  0,  5,  6,  Qt.AlignLeft )
+        grid.addWidget( self.image_label,           2,  1,  5,  6,  Qt.AlignLeft )
         # Jog Panel
-        grid.addWidget(self.panel_box,              1,  6,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget(self.panel_box,              2,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # tool selection table
-        grid.addWidget( self.tool_box,              2,  6,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget( self.tool_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # instruction box
-        grid.addWidget( self.instructions_box,      3,  6,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget( self.instructions_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # conditional exit button
         if self.small_display:
-            grid.addWidget( self.exit_button,       4,  6,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+            grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         # debug window button
-        grid.addWidget( self.debug_button,          5,  6,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
-        ###########################################################################################################################
+        grid.addWidget( self.debug_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+        
+        
+        ###################################################
+        # Third container
+        
         # set control point button
-        grid.addWidget( self.cp_button,             6,  0,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.cp_button,             7,  1,  1,  1,  Qt.AlignLeft )
         # start calibration button
-        grid.addWidget( self.calibration_button,    6,  1,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.calibration_button,    7,  2,  1,  1,  Qt.AlignLeft )
         # cycle repeat label
-        grid.addWidget( self.repeat_label,          6,  2,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.repeat_label,          7,  3,  1,  1,  Qt.AlignLeft )
         # cycle repeat selector
-        grid.addWidget( self.repeatSpinBox,         6,  3,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.repeatSpinBox,         7,  4,  1,  1,  Qt.AlignLeft )
         # manual alignment button
-        grid.addWidget( self.manual_button,         6,  5,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.manual_button,         7,  6,  1,  1,  Qt.AlignLeft )
         # CP auto calibration button
-        grid.addWidget( self.cp_calibration_button, 6,  6,  1,  1,  Qt.AlignRight )
+        grid.addWidget( self.cp_calibration_button, 7,  7,  1,  1,  Qt.AlignRight )
         ################################################# END ELEMENT POSITIONING #################################################
 
         # set the grid layout as the widgets layout
@@ -3060,34 +3085,35 @@ class App(QMainWindow):
         self.current_frame = cv_img
         # Draw crosshair alignment circle on image if required
         if self.crosshair or self.crosshair_alignment:
-            alpha = 0.5
+            alpha = 0.8
             beta = 1-alpha
             center = ( int(camera_width/2), int(camera_height/2) )
-            overlay = cv2.circle( 
+            overlayCircle = cv2.circle( 
                 cv_img.copy(), 
                 center, 
                 6, 
                 (0,255,0), 
                 int( camera_width/1.75 )
             )
-            overlay = cv2.circle( 
-                overlay.copy(), 
+            overlayCircle = cv2.circle( 
+                overlayCircle.copy(), 
                 center, 
                 5, 
                 (0,0,255), 
                 2
             )
             for i in range(0,8):
-                overlay = cv2.circle( 
-                overlay.copy(), 
+                overlayCircle = cv2.circle( 
+                overlayCircle.copy(), 
                 center, 
                 25*i, 
                 (0,0,0), 
                 1
             )
-            overlay = cv2.line(overlay, (center[0],center[1]-int( camera_width/3 )), (center[0],center[1]+int( camera_width/3 )), (128, 128, 128), 1)
-            overlay = cv2.line(overlay, (center[0]-int( camera_width/3 ),center[1]), (center[0]+int( camera_width/3 ),center[1]), (128, 128, 128), 1)
-            cv_img = cv2.addWeighted(overlay, beta, cv_img, alpha, 0)
+            cv_img = cv2.addWeighted(overlayCircle, beta, cv_img, alpha, 0)
+            cv_img = cv2.line(cv_img, (center[0],center[1]-int( camera_width/3 )), (center[0],center[1]+int( camera_width/3 )), (128, 128, 128), 1)
+            cv_img = cv2.line(cv_img, (center[0]-int( camera_width/3 ),center[1]), (center[0]+int( camera_width/3 ),center[1]), (128, 128, 128), 1)
+            cv_img = cv2.addWeighted(cv_img, 1, cv_img, 0, 0)
         
         # Updates the image_label with a new opencv image
         qt_img = self.convert_cv_qt(cv_img)
