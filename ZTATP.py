@@ -50,10 +50,10 @@ def init():
     print('Attempting to connect to printer at '+duet)
     global prt
     prt = DWA.DuetWebAPI('http://'+duet)
-    if (not prt.printerType()):
+    if ( prt.isIdle() is not True ):
         print('Device at '+duet+' either did not respond or is not a Duet V2 or V3 printer.')
         exit(2)
-    print("Connected to a Duet V"+str(prt.printerType())+" printer at "+prt.baseURL())
+    print( "Connected to a Duet V" + prt.getPrinterType() + " printer at " + prt._base_url )
 
     if( tool is not - 1 ):
         tool = tool[0]
@@ -90,10 +90,10 @@ def init():
     print("# Options in force for this run: #")
     print("# printer    = {0:18s}#".format(duet))
     print("# touchplate = {0:6.2f} {1:6.2f}     #".format(tp[0],tp[1]))
-    if (prt.printerType() == 3):
+    if (prt.getPrinterType() == 3):
         print("# firmware   = V3.x.x            #")
         print("# pin        = {0:18s}#".format(str(pin)))
-    if (prt.printerType() == 2):
+    if (prt.getPrinterType() == 2):
         print("# firmware   = V2.x.x            #")
         print("# pin        = Z_PROBE_IN        #")
     print("##################################")
@@ -103,10 +103,13 @@ def probePlate():
     prt.resetEndstops()
     # HBHBHB: TODO - insert code to handle 0.7mm offset in RRF here!
     commandBuffer = []
-    commandBuffer.append('T-1')                                        # Unmount any/all tools
-    commandBuffer.append('G90 G1 X'+str(tp[0])+' Y'+str(tp[1])+' Z50 ')    # The real purpose of this is to move the probe into position with its correct offsets. 
-    commandBuffer.append('M400')                                       # wait for buffer to clear
-    prt.gCodeBatch(commandBuffer)
+    # Unload tools
+    prt.unloadTools()
+    # Move probe into position
+    prt.moveAbsolute( X=str(tp[0]), Y=str(tp[1]), Z=50 )
+    # Flush movement buffer
+    prt.flushMovementBuffer()
+
      # wait for probing setup moves to complete before prompting for probe plate
     while prt.getStatus() not in 'idle':
         time.sleep(1)
@@ -119,17 +122,19 @@ def probePlate():
     commandBuffer.append('M558 F50')                                   # set probing speed slow
     commandBuffer.append('G30')                                        # perform second probe
     commandBuffer.append('G30 S-1')                                    # Now we can probe in such a way that Z is readable.
-    commandBuffer.append('M400')                                       # wait for buffer to clear
     prt.gCodeBatch(commandBuffer)
+    # wait for buffer to clear
+    prt.flushMovementBuffer()
     poffs = 0
 
     # wait for probing to complete before fetching offsets
     while prt.getStatus() not in 'idle':
         time.sleep(1) 
     
-    poffs = prt.getCoords()['Z']                            # Capture the Z position at initial point of contact
+    poffs = prt.getCoordinates()['Z']                            # Capture the Z position at initial point of contact
     print("Touch plate offset = "+str(poffs))                     # Display captured offset to terminal
-    prt.gCode('G91 G0 Z10 F1000 G90')                        # Lower bed to avoid collision
+    # Lower bed to avoid collision
+    prt.moveRelative( moveSpeed=1000, Z=10 )
     return(poffs)
 
 def probeTool(tn):
@@ -138,24 +143,30 @@ def probeTool(tn):
     print( 'Probing tool ' + str(tn) + '..')
     print( 'ZTATP will prompt you to connect your lead once the tool is positioned over the touch plate.' )
     prt.resetEndstops()                                         # return all endstops to natural state from config.g definitions
-    prt.gCode('M400')                                           # Wait for planner to empty
+    
+    # Wait for planner to empty
+    prt.flushMovementBuffer()
+
     while prt.getStatus() not in 'idle':
         #print("sleeping.")
         time.sleep(1)
-    commandBuffer.append('G10 P'+str(tn)+' Z0')                            # Remove z offsets from Tool 
-    commandBuffer.append('G91 G0 Z45 F1000 G90')                           # Lower bed to avoid collision (move to +45 relative in Z)
-    commandBuffer.append('T'+str(tn))                                      # Pick up Tool number 'tn'
-    prt.gCodeBatch(commandBuffer)
+    # Remove z offsets from tool
+    prt.setToolOffsets( tool=str(tn), Z=0 )
+    # Lower bed to avoid collision (move to +45 relative in Z)
+    prt.moveRelative( Z=45 )
+    # Pick up Tool number 'tn'
+    prt.loadTool( toolIndex=str(tn) )
+
     duet2rrf3board = prt.checkDuet2RRF3()
     # Z Axis Probe setup
     # add code to switch pin based on RRF2 vs RRF3 definitions - RRF3 defaults to the original TAMV code
-    if (prt.printerType() == 3):
+    if (prt.getPrinterType() == 3):
         # START -- Code for RRF3
         print('*** RRF3 printer connected.')
         prt.gCode('M558 K0 P9 C"nil"')                              # Undef existing probe
         prt.gCode('M558 K0 P5 C"'+pin+'" F200 H50')                     # Define ( nozzle ) <--> ( probe plate ) as probe
         # END -- Code for RRF3
-    if (prt.printerType() == 2):
+    if (prt.getPrinterType() == 2):
         # START -- Code for RRF2
         # check if using a Duet 2 board with 3.2+ firmware
         if duet2rrf3board:
@@ -167,15 +178,18 @@ def probeTool(tn):
             prt.gCode('M558 P5 I1 F200 H50')                             # Define ( nozzle ) <--> ( probe plate ) as probe (Z-Probe In pin connected to nozzle, probe plate is connected to ground)
         # END -- Code for RRF2
     
-    prt.gCode('G0 X'+str(tp[0])+' Y'+str(tp[1])+' F10000')      # Move nozzle to spot above flat part of plate
+    # Move nozzle to spot above flat part of plate
+    prt.moveAbsolute( moveSpeed=10000, X=str(tp[0]), Y=str(tp[1]) )
+
     input('Connect probe lead to tool ' + str(tn) + ' and press ENTER to continue.')
     prt.gCode('M558 F300')                                      # set probing speed fast
     prt.gCode('G30 S-1')                                        # Initiate a probing sequence
     # wait for probing to complete before fetching offsets
     while prt.getStatus() not in 'idle':
         time.sleep(1) 
-    print('First pass offset for tool ' + str(tn) + ': ' + str(prt.getCoords()['Z']) )
-    prt.gCode('G91 G1 Z5 G90')                                  # move bed away from probe for second pass
+    print('First pass offset for tool ' + str(tn) + ': ' + str(prt.getCoordinates()['Z']) )
+    # move bed away from probe for second pass
+    prt.moveRelative( Z=5 )
     prt.gCode('M558 F50')                                      # set probing speed fast
     prt.gCode('G30 S-1')
 
@@ -183,10 +197,13 @@ def probeTool(tn):
     while prt.getStatus() not in 'idle':
         time.sleep(1)  
 
-    toffs = prt.getCoords()['Z']                                # Fetch current Z coordinate from Duet controller
+    toffs = prt.getCoordinates()['Z']                                # Fetch current Z coordinate from Duet controller
     print("Final offset for tool "+str(tn)+": "+str(toffs))    # Output offset to terminal for user to read
-    prt.gCode('G91 G0 Z45 F1000 G90')                           # Lower bed to avoid collision
-    if (prt.printerType() == 3):
+    
+    # Lower bed to avoid collision
+    prt.moveRelative( Z=45 )
+
+    if (prt.getPrinterType() == 3):
         # START -- Code for RRF3
         prt.gCode('M574 Z1 S1 P"nil"')                              # Undef endstop for Z axis
         # END -- Code for RRF3
@@ -196,8 +213,10 @@ def probeTool(tn):
         # END -- Code for RRF3
     prt.resetEndstops()                                         # return all endstops to natural state from config.g definitions
     input('Please disconnect probe lead to tool ' + str(tn) + ' and press ENTER to continue. Active tool is going to be docked.')
-    prt.gCode('T-1')                                            # unload tool
-    prt.gCode('M400')                                           # wait until all movement has finished
+    # unload tools
+    prt.unloadTools()
+    # wait until all movement has finished
+    prt.flushMovementBuffer()
     return(toffs)                                               # return offsets and end function
 # End of probeTool function
 
@@ -242,7 +261,9 @@ if (tool == -1):
         # wait for probing to complete before setting offsets
         #while prt.getStatus() is 'processing':
         #    time.sleep(1) 
-        prt.gCode('G10 P'+str(tn)+' Z{:0.3f}'.format(finalOffset))
+        # Set tool offset
+        prt.setToolOffsets(tool=str(tn), Z=str(finalOffset) )
+
 else:
     print("Final offset for tool "+str(tool)+": "+str(toolCoords[0]))
     print()
@@ -250,8 +271,9 @@ else:
     print('G10 P'+str(tool)+' Z{:0.3f}'.format(finalOffset))
     # wait for probing to complete before setting offsets
     #while prt.getStatus() is 'processing':
-    #    time.sleep(1) 
-    prt.gCode('G10 P'+str(tool)+' Z{:0.3f}'.format(finalOffset))
+    #    time.sleep(1)
+    # Set tool offset
+    prt.setToolOffsets(tool=str(tool), Z=str(finalOffset) ) 
 print()
 print("Tool offsets have been applied to the current printer.")
 print("Please modify your tool definitions in config.g to reflect these newly measured values for persistent storage.")

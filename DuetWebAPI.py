@@ -9,557 +9,952 @@
 # methods for other information; please keep the abstraction for V2 V3 
 #
 # Copyright (C) 2020 Danal Estes all rights reserved.
-# Copyright (C) 2021 Haytham Bennani
+# Copyright (C) 2022 Haytham Bennani
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 # Requires Python3
-
-# create logger
+from csv import excel_tab
 import logging
-logger = logging.getLogger('TAMV.DuetWebAPI')
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+# import dependencies
+import json
+import sys
+import time
+import datetime
+# import custom exception classes
+import customExceptions
+# invoke parent (TAMV) _logger
+_logger = logging.getLogger('TAMV.DuetWebAPI')
+# # enable HTTP requests logging
+# import http.client
+# http.client.HTTPConnection.debuglevel = 1
 
+#################################################################################################################################
+#################################################################################################################################
+# Exception Classes
+class Error(Exception):
+    """Base class for other exceptions"""
+    pass
+class UnknownController(Error):
+    pass
+class FailedToolDetection(Error):
+    pass
+class FailedOffsetCapture(Error):
+    pass
+class StatusException(Error):
+    pass
+class CoordinatesException(Error):
+    pass
+class SetOffsetException(Error):
+    pass
+class ToolTimeoutException(Error):
+    pass
+class HomingException(Error):
+    pass
+
+#################################################################################################################################
+#################################################################################################################################
+# helper class for tool definition
+class Tool:
+    # class attributes
+    _number = 0
+    _name = "Tool"
+    _nozzleSize = 0.4
+    _offsets = {"X":0, "Y": 0, "Z": 0}
+    
+    def __init__( self, number=0, name="Tool", nozzleSize=0.4, offsets={"X":0, "Y": 0, "Z": 0} ):
+        self._number = number
+        self._name = name
+        self._nozzleSize = nozzleSize
+        self._offsets = offsets
+
+    def getJSON( self ):
+        return( {
+            "number": self._number,
+            "name": self._name, 
+            "nozzleSize": self._nozzleSize,
+            "offsets": [ self._offsets["X"], self._offsets["Y"], self._offsets["Z"] ]
+        } )
+
+#################################################################################################################################
+#################################################################################################################################
+# Main class for interface
 class DuetWebAPI:
-    import requests
-    import json
-    import sys
-    import time
-    import datetime
+    # Any unhandled/general exceptions raised will cause a system exit to prevent machine damage.
 
+    #################################################################################################################################
+    #################################################################################################################################
+    # Class attributes
+    # Duet hardware version (Duet 2 or Duet 3 controller)
     pt = 0
+    # base URL to connect to machine
     _base_url = ''
+    # Machine-specific attributes
+    _nickname = 'Default'
+    _firmwareName = 'RRF'
+    _firmwareVersion = ''
+    # special internal flag to handle Duet 2 boards running RRF v3 firmware - only needed for Duet controllers
+    # you may delete this variable if extending API to other boards
     _rrf2 = False
+    # Max time to wait for toolchange before raising a timeout exception, in seconds
+    _toolTimeout = 300
+    # Max time to wait for HTTP requests to complete
+    _requestTimeout = 2
+    _responseTimeout = 10
+    # flag to indicate if machine has been homed or not
+    _homed = None
+    # Tools
+    _tools = []
 
-    def __init__(self,base_url):
-        logger.debug('Starting DuetWebAPI..')
-        self._base_url = base_url
+    #################################################################################################################################
+    # Instantiate class and connect to controller
+    # Parameters:
+    #   - baseURL (string): full IP address (not FQDN or alias) in the format 'http://xxx.xxx.xxx.xxx' without trailing '/'
+    #   - nickname (string): short nickname for identifying machine (strictly for TAMV GUI)
+    #
+    # Returns: NONE
+    # 
+    # Raises: 
+    #   - UnknownController: if fails to connect
+    def __init__( self, baseURL, nickname='Default' ):
+        _logger.debug('Starting DuetWebAPI..')
+        # parse input parameters
+        self._base_url = baseURL
+        self._nickname = nickname
+        self._tools = []
+        # Name as defined in RRF config.g file
+        self._name = 'My Duet'
+        # set up session parameters
+        self.session = requests.Session()
+        self.retry = Retry( connect=3, backoff_factor=0.4 )
+        self.adapter = HTTPAdapter( max_retries=self.retry )
+        self.session.mount( 'http://', self.adapter )
         try:
-            logger.info('Connecting to ' + base_url + '..')
+            # check if its a Duet 2 board
+            # Attempt to connect using rr_status interface
             URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=(2,60))
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            j = json.loads(r.text)
+            
+            # Send reply to clear buffer
             replyURL = (f'{self._base_url}'+'/rr_reply')
-            reply = self.requests.get(replyURL,timeout=2)
-            j = self.json.loads(r.text)
-            _=j['coords']
-            firmwareName = j['firmwareName']
-
+            r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+            
+            # Get machine name
+            self._name = j['name']
+            # Setup tool definitions
+            toolData = j['tools']
+            for inputTool in toolData:
+                tempTool = Tool( 
+                    number = inputTool['number'],
+                    name = inputTool['name'],
+                    offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z':inputTool['offsets'][2]} )
+                self._tools.append( tempTool )
+            
+            # Check for firmware version
             try:
                 firmwareName = j['firmwareName']
                 # fetch hardware board type from firmware name, character 24
                 boardVersion = firmwareName[24]
-                firmwareVersion = j['firmwareVersion']
-                if firmwareVersion[0] == "2":
+                self._firmwareVersion = j['firmwareVersion']
+                # set RRF version based on results
+                if self._firmwareVersion[0] == "2":
+                    # Duet running RRF v2
                     self._rrf2 = True
+                    self.pt = 2
                 else: 
+                    # Duet 2 hardware running RRF v3
                     self._rrf2 = False
                     self.pt = 2
-                    return
-            except Exception as e:
-                self._rrf2 = True
-                logger.warning('unknown board+RRF combo - defaulting to RRF2')
-            self.pt = 2
-            logger.info('Connected to '+ firmwareName + '- V'+firmwareVersion)
-            return
-        except:
-            try:
-                URL=(f'{self._base_url}'+'/machine/status')
-                r = self.requests.get(URL,timeout=(2,60))
-                j = self.json.loads(r.text)
-                _=j
-                firmwareName = j['boards'][0]['firmwareName']
-                firmwareVersion = j['boards'][0]['firmwareVersion']
-                self.pt = 3
-                logger.info('Connected to: '+ firmwareName + '- V'+firmwareVersion)
+                _logger.info('  .. connected to '+ firmwareName + '- V'+ self._firmwareVersion + '..')
                 return
             except:
-                logger.error( self._base_url + " does not appear to be an RRF2 or RRF3 printer")
-                return 
-####
-# The following methods are a more atomic, reading/writing basic data structures in the printer. 
-####
+                # We're probably dealing with a Duet 3 controller, get required firmware info
+                try:
+                    _logger.debug('Trying to connect to Duet 3 board..')
+                    URL=(f'{self._base_url}'+'/machine/status')
+                    r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                    _logger.debug('Got reply, parsing again..' )
+                    j = json.loads(r.text)
+                    _=j
+                    firmwareName = j['boards'][0]['firmwareName']
+                    firmwareVersion = j['boards'][0]['firmwareVersion']
+                    self.pt = 3
 
-    def printerType(self):
-        return(self.pt)
+                    # Setup tool definitions
+                    toolData = j['tools']
+                    for inputTool in toolData:
+                        tempTool = Tool( 
+                            number = inputTool['number'],
+                            name = inputTool['name'],
+                            offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z':inputTool['offsets'][2]} )
+                        self._tools.append( tempTool )
+                    
+                    _logger.debug('Duet 3 board detected')
+                    _logger.info('  .. connected to: '+ firmwareName + '- V'+firmwareVersion + '..')
+                    return
+                except:
+                    # The board is neither a Duet 2 controller using RRF v2/3 nor a Duet 3 controller board, return an error state
+                    raise UnknownController('Unknown controller detected.')
+        except UnknownController as uc:
+            _logger.critical( "Unknown controller at " + self._base_url + " - does not appear to be an RRF2 or RRF3 printer")
+            raise SystemExit(uc)
+        except Exception as e:
+            # Catastrophic error. Bail.
+            _logger.critical( str(e) )
+            raise SystemExit(e)
 
-    def baseURL(self):
-        return(self._base_url)
+    #################################################################################################################################
+    # Get firmware version
+    # Parameters: 
+    # - NONE
+    #
+    # Returns: integer
+    #   - returns either 2 or 3 depending on which RRF version is running on the controller
+    #
+    # Raises: NONE
+    def getPrinterType( self ):
+        _logger.debug('Called getPrinterType')
+        return( self.pt )
+    
+    #################################################################################################################################
+    # Get number of defined tools from machine
+    # Parameters: 
+    #   - NONE
+    #
+    # Returns: integer
+    #   - Positive integer for number of defined tools on machine
+    #
+    # Raises: 
+    #   - FailedToolDetection: when cannot determine number of tools on machine
+    def getNumTools( self ):
+        _logger.debug('Called getNumTools')
+        
+        # try:
+        #     if (self.pt == 2):
+        #         # Duet RRF v2
+        #         URL=(f'{self._base_url}'+'/rr_status?type=2')
+        #         r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+        #         j = json.loads(r.text)
+        #         jc=j['tools']
+        #         _logger.debug('Number of tools: ' + str(len(jc)))
 
-    def getCoords(self):
-        import time
+        #         # Send reply to clear buffer
+        #         replyURL = (f'{self._base_url}'+'/rr_reply')
+        #         r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+        #         return( len(jc) )
+        #     elif (self.pt == 3):
+        #         # Duet RRF v3
+        #         URL=(f'{self._base_url}'+'/machine/status')
+        #         r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+        #         j = json.loads(r.text)
+        #         if 'result' in j: j = j['result']
+        #         _logger.debug('Number of tools: ' + str(len(j['tools'])))
+        #         return( len(j['tools']) )
+        #     # failed to get tool data, raise exception
+        #     raise FailedToolDetection('Cannot determine number of tools on machine')
+        # except FailedToolDetection as ft:
+        #     _logger.critical('Failed to detect number of tools on machine')
+        #     raise SystemExit(ft)
+        # except Exception as e:
+        #     _logger.critical( "Connection error: " + str(e) )
+        #     raise SystemExit(e)
+        return( len(self._tools) )
+
+    #################################################################################################################################
+    # Get index of currently loaded tool
+    # Tool numbering always starts as 0, 1, 2, ..
+    # Parameters: 
+    #   - NONE
+    #
+    # Returns: integer
+    #   - Positive integer for index of current loaded tool
+    #   - '-1' if no tool is loaded on the machine
+    #
+    # Raises: 
+    #   - FailedToolDetection: when cannot determine number of tools on machine
+    def getCurrentTool( self ):
+        _logger.debug('Called getCurrentTool')
         try:
             if (self.pt == 2):
-                if not self._rrf2:
-                    logger.debug('XX - Duet RRF 3 using rr_status endpoint')
-                    #RRF 3 using rr_status API
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    if not r.ok:
-                        logger.warning('Error parsing getStatus session: ' + r)
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        logger.debug('XX - Buffering..')
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        try:
-                            buffer_response = buffer_request.json()
-                            buffer_size = int(buffer_response['buff'])
-                        except:
-                            buffer_size = 149
-                        replyURL = (f'{self._base_url}'+'/rr_reply')
-                        reply = self.requests.get(replyURL,timeout=2)
-                        if buffer_size < 150:
-                            logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                            time.sleep(0.6)
+                # Wait for machine to be in idle state
                 while self.getStatus() not in "idle":
-                    logger.debug('XX - printer not idle _SLEEPING_')
+                    _logger.debug('Machine not idle, sleeping 0.5 seconds.')
                     time.sleep(0.5)
+                # Fetch machine data
                 URL=(f'{self._base_url}'+'/rr_status?type=2')
-                logger.debug('XX - calling API endpoint')
-                r = self.requests.get(URL,timeout=2)
-                logger.debug('XX - endpoint reply received')
-                j = self.json.loads(r.text)
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                ret=j['currentTool']
+
+                # Send reply to clear buffer
                 replyURL = (f'{self._base_url}'+'/rr_reply')
-                logger.debug('XX - calling endpoint again')
-                reply = self.requests.get(replyURL,timeout=2)
-                logger.debug('XX - coordinate response received')
-                jc=j['coords']['xyz']
-                an=j['axisNames']
-                ret=self.json.loads('{}')
-                for i in range(0,len(jc)):
-                    ret[ an[i] ] = jc[i]
-                logger.debug('XX - returning coordinates')
+                r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+                _logger.debug('Found current tool: ' + str(ret))
                 return(ret)
-            if (self.pt == 3):
-                logger.debug('XX - Duet RRF 3 using machine/status endpoint')
-                while self.getStatus() not in "idle":
-                    logger.debug('XX - printer not idle _SLEEPING_')
-                    time.sleep(0.5)
+            elif (self.pt == 3):
                 URL=(f'{self._base_url}'+'/machine/status')
-                logger.debug('XX - requesting machine status')
-                r = self.requests.get(URL,timeout=2)
-                logger.debug('XX - machine reponse received')
-                j = self.json.loads(r.text)
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                if 'result' in j: j = j['result']
+                ret=j['state']['currentTool']
+                _logger.debug('Found current tool: ' + str(ret))
+                return(ret)
+            else:
+                # Unknown condition, raise error
+                raise FailedToolDetection('Something failed. Baililng.')
+        except ConnectionError as ce:
+            _logger.critical('Connection error while polling for current tool')
+            raise SystemExit(ce)
+        except FailedToolDetection as fd:
+            _logger.critical('Failed tool detection.')
+            raise SystemExit(e1)
+        except Exception as e1:
+            _logger.critical('Unhandled exception in getCurrentTool: ' + str(e1))
+            raise SystemExit(e1)
+
+    #################################################################################################################################
+    # Get currently defined offsets for tool referenced by index
+    # Tool numbering always starts as 0, 1, 2, ..
+    # Parameters:
+    #   - toolIndex (integer): index of tool to get offsets for
+    #
+    # Returns: 
+    #   - tuple of floats: { 'X': 0.000 , 'Y': 0.000 , 'Z': 0.000 }
+    #
+    # Raises: 
+    #   - FailedOffsetCapture: when cannot determine number of tools on machine
+    def getToolOffset( self, toolIndex=0 ):
+        _logger.debug('Called getToolOffset')
+        try:
+            if (self.pt == 3):
+                URL=(f'{self._base_url}'+'/machine/status')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
                 if 'result' in j: j = j['result']
                 ja=j['move']['axes']
-                ret=self.json.loads('{}')
-                for i in range(0,len(ja)):
-                    ret[ ja[i]['letter'] ] = ja[i]['userPosition']
-                logger.debug('XX - returning from machine/status call')
+                jt=j['tools']
+                ret=json.loads('{}')
+                to = jt[toolIndex]['offsets']
+                for i in range(0,len(to)):
+                    ret[ ja[i]['letter'] ] = to[i]
+                _logger.debug('Tool offset for T' + str(toolIndex) +': ' + str(ret))
                 return(ret)
+            elif (self.pt == 2):
+                URL=(f'{self._base_url}'+'/rr_status?type=2')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                ja=j['axisNames']
+                jt=j['tools']
+                ret=json.loads('{}')
+                to = jt[toolIndex]['offsets']
+                for i in range(0,len(to)):
+                    ret[ ja[i] ] = to[i]
+                _logger.debug('Tool offset for T' + str(toolIndex) +': ' + str(ret))
+                
+                # Send reply to clear buffer
+                replyURL = (f'{self._base_url}'+'/rr_reply')
+                r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+                return(ret)
+            else:
+                raise FailedOffsetCapture('getG10ToolOffset entered unhandled exception state.')
+        except FailedOffsetCapture as fd:
+            _logger.critical(str(fd))
+            raise SystemExit(fd)
+        except ConnectionError as ce:
+            _logger.critical('Connection error in getToolOffset.')
+            raise SystemExit(ce)
         except Exception as e1:
-            logger.error('Exception occurred in getCoords: ' + e1 )
-        
-    def getCoordsAbs(self):
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            jc=j['coords']['machine']
-            an=j['axisNames']
-            ret=self.json.loads('{}')
-            for i in range(0,len(jc)):
-                ret[ an[i] ] = jc[i]
-            return(ret)
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            ja=j['move']['axes']
-            ret=self.json.loads('{}')
-            for i in range(0,len(ja)):
-                ret[ ja[i]['letter'] ] = ja[i]['machinePosition']
-            return(ret)
+            _logger.critical('Unhandled exception in getToolOffset: ' + str(e1))
+            raise SystemExit(e1)
 
-    def getLayer(self):
-        if (self.pt == 2):
-           URL=(f'{self._base_url}'+'/rr_status?type=3')
-           r = self.requests.get(URL,timeout=2)
-           j = self.json.loads(r.text)
-           s = j['currentLayer']
-           return (s)
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            s = j['job']['layer']
-            if (s == None): s=0
-            return(s)
-
-    def getG10ToolOffset(self,tool):
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            ja=j['move']['axes']
-            jt=j['tools']
-            ret=self.json.loads('{}')
-            to = jt[tool]['offsets']
-            for i in range(0,len(to)):
-                ret[ ja[i]['letter'] ] = to[i]
-            logger.debug('Tool offset for T' + str(tool) +': ' + str(ret))
-            return(ret)
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            ja=j['axisNames']
-            jt=j['tools']
-            ret=self.json.loads('{}')
-            to = jt[tool]['offsets']
-            for i in range(0,len(to)):
-                ret[ ja[i] ] = to[i]
-            logger.debug('Tool offset for T' + str(tool) +': ' + str(ret))
-            return(ret)
-        logger.warning('getG10ToolOffset entered unhandled exception state.')
-        return({'X':0,'Y':0,'Z':0})      # Dummy for now              
-
-    def getNumExtruders(self):
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            jc=j['coords']['extr']
-            logger.debug('Number of extruders: ' + str(len(jc)))
-            return(len(jc))
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            logger.debug('Number of extruders: ' + str(len(j['move']['extruders'])))
-            return(len(j['move']['extruders']))
-
-    def getNumTools(self):
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            jc=j['tools']
-            logger.debug('Number of tools: ' + str(len(jc)))
-            return(len(jc))
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            logger.debug('Number of tools: ' + str(len(j['tools'])))
-            return(len(j['tools']))
-
-    def getStatus(self):
-        import time
+    #################################################################################################################################
+    # Get machine status, mapping any controller status output into 1 of 3 possible states
+    # Parameters:
+    #   - NONE
+    #
+    # Returns: string of following values ONLY
+    #   - idle
+    #   - processing
+    #   - paused
+    #
+    # Raises: 
+    #   - StatusException: when cannot determine machine status
+    #   - StatusTimeoutException: when machine takes longer than _toolTimeout seconds to respond
+    def getStatus( self ):
+        _logger.debug('Called getStatus')
         try:
             if (self.pt == 2):
-                if not self._rrf2:
-                    #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    if not r.ok:
-                        logger.warning('Error in getStatus session: ' + str(r))
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        try:
-                            buffer_response = buffer_request.json()
-                            buffer_size = int(buffer_response['buff'])
-                        except:
-                            buffer_size = 149
-                        replyURL = (f'{self._base_url}'+'/rr_reply')
-                        reply = self.requests.get(replyURL,timeout=2)
-                        if buffer_size < 150:
-                            logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                            time.sleep(0.6)
-                URL=(f'{self._base_url}'+'/rr_status?type=2')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                s=j['status']
-                replyURL = (f'{self._base_url}'+'/rr_reply')
-                reply = self.requests.get(replyURL,timeout=2)
-                if not self._rrf2:
-                    endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-                    r2 = self.requests.get(endsessionURL,timeout=2)
-                    if not r2.ok:
-                        logger.error('getStatus ended session: ' + str(r2))
-                if ('I' in s): return('idle')
-                if ('P' in s): return('processing')
-                if ('S' in s): return('paused')
-                if ('B' in s): return('canceling')
-                return(s)
-            if (self.pt == 3):
+                URL=(f'{self._base_url}'+'/rr_status')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                _status=j['status']
+            elif (self.pt == 3):
                 URL=(f'{self._base_url}'+'/machine/status')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
                 if 'result' in j: 
                     j = j['result']
-                _status = str(j['state']['status'])
-                return( _status.lower() )
+                _status = lower(str(j['state']['status']))
+            else:
+                # unknown error raise exception
+                raise StatusException('Unknown error getting machine status')
+            
+            # Send reply to clear buffer
+            # replyURL = (f'{self._base_url}'+'/rr_reply')
+            # r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+            # OUTPUT MAPPING LOGIC
+            # Handle return mapping of status variable "_status"
+            if ( _status == "idle" or _status == "I"):
+                _logger.debug("Machine is idle.")
+                return ("idle")
+            elif ( _status == "paused" or _status == "S" or _status == "pausing" or _status == "D"):
+                _logger.debug("Machine is paused.")
+                return ("paused")
+            else:
+                _logger.debug("Machine is busy processing something.")
+                return ("processing")
+        except StatusException as se:
+            _logger.critical(str(se))
+            raise SystemExit(se)
+        except ConnectionError as ce:
+            _logger.critical('Connection error in getStatus')
+            raise SystemExit(ce)
         except Exception as e1:
-            logger.error('Unhandled exception in getStatus: ' + str(e1))
-            return 'Error'
+            _logger.critical('Unhandled exception in getStatus: ' + str(e1))
+            raise SystemExit(e1)
+
+    #################################################################################################################################
+    # Get current tool coordinates from machine in XYZ space
+    # Parameters:
+    #   - NONE
+    #
+    # Returns: 
+    #   - tuple of floats: { 'X': 0.000 , 'Y': 0.000 , 'Z': 0.000 }
+    #
+    # Raises: 
+    #   - CoordinatesException: when cannot determine machine status
+    def getCoordinates( self ):
+        _logger.debug('Called getCoordinates')
+        try:
+            if (self.pt == 2):
+                # poll machine for coordinates
+                while self.getStatus() not in "idle":
+                    _logger.debug('Sleeping 0.5s until printer is idle.')
+                    time.sleep(0.5)
+                
+                URL=(f'{self._base_url}'+'/rr_status?type=2')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if not r.ok:
+                    raise ConnectionError('Error in getCoordinates session 2: ' + str(r))
+                j = json.loads(r.text)
+                jc=j['coords']['xyz']
+                an=j['axisNames']
+                ret=json.loads('{}')
+                for i in range(0,len(jc)):
+                    ret[ an[i] ] = jc[i]
+                
+                # Send reply to clear buffer
+                #replyURL = (f'{self._base_url}'+'/rr_reply')
+                #r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+                return(ret)
+            elif (self.pt == 3):
+                while self.getStatus() not in "idle":
+                    _logger.debug('XX - printer not idle _SLEEPING_')
+                    time.sleep(0.5)
+                URL=(f'{self._base_url}'+'/machine/status')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if not r.ok:
+                    raise ConnectionError('Error in getCoordinates session 3: ' + str(r))
+                j = json.loads(r.text)
+                if 'result' in j: j = j['result']
+                ja=j['move']['axes']
+                ret=json.loads('{}')
+                for i in range(0,len(ja)):
+                    ret[ ja[i]['letter'] ] = ja[i]['userPosition']
+                _logger.debug( 'Returning coordinates: ' + str(ret) )
+                return(ret)
+            else:
+                #unknown error, raise exception
+                raise CoordinatesException("Unknown duet controller.")
+        except CoordinatesException as ce1:
+            _logger.critical(str(ce1))
+            raise SystemExit(ce1)
+        except ConnectionError as ce:
+            _logger.critical('Connection error in getCoordinates')
+            raise SystemExit(ce)
+        except Exception as e1:
+            _logger.critical('Unhandled exception in getCoordinates: ' + str(e1))
+            raise SystemExit(e1)
+
+    #################################################################################################################################
+    # Set tool offsets for indexed tool in X, Y, and Z
+    # Parameters:
+    #   - toolIndex (integer):
+    #   - offsetX (float):
+    #   - offsetY (float):
+    #   - offsetZ (float):
+    #
+    # Returns: NONE
+    #
+    # Raises: 
+    #   - SetOffsetException: when failed to set offsets in controller
+    def setToolOffsets( self, tool=None, X=None, Y=None, Z=None):
+        _logger.debug('Called setToolOffsets')
+        try:
+            # Check for invalid tool index, raise exception if needed.
+            if( tool is None ):
+                raise SetOffsetException( "No tool index provided.")
+            # Check that any valid offset has been passed as an argument
+            elif( X is None and Y is None and Z is None ):
+                raise SetOffsetException( "Invalid offsets provided." )
+            else:
+                offsetCommand = "G10 P" + str(int(tool))
+                if( X is not None ):
+                    offsetCommand += " X" + str(X)
+                if( Y is not None ):
+                    offsetCommand += " Y" + str(Y)
+                if( Z is not None ):
+                    offsetCommand += " Z" + str(Z)
+                _logger.debug( offsetCommand )
+                self.gCode( offsetCommand )
+                _logger.debug( "Tool offsets applied.")
+        except SetOffsetException as se:
+            _logger.error(se)
+            return
+        except Exception as e:
+            _logger.critical( "setToolOffsets unhandled exception: " + str(e) )
+            raise SystemExit( "setToolOffsets unhandled exception: " + str(e) )
+
+    #################################################################################################################################
+    # Helper function to check if machine is idle or not
+    # Parameters: NONE
+    #
+    # Returns: boolean
+    def isIdle( self ):
+        _logger.debug("Called isIdle")
+        state = self.getStatus()
+        if( state == "idle" ):
+            return True
+        else:
+            return False
+
+    #################################################################################################################################
+    # Helper function to check if machine is homed on all axes for motion
+    # Parameters: NONE
+    #
+    # Returns: boolean
+    def isHomed( self ):
+        _logger.debug("Called isHomed")
+        if( self._homed is not None ):
+            return self._homed
+        machineHomed = True
+        try:
+            if (self.pt == 2):
+                # Duet RRF v2
+                URL=(f'{self._base_url}'+'/rr_status?type=2')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                axesList=j['coords']['axesHomed']
+                for axis in axesList:
+                    if( axis == 0 ):
+                        machineHomed = False
+                    else:
+                        pass
+                # Send reply to clear buffer
+                replyURL = (f'{self._base_url}'+'/rr_reply')
+                r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+            elif (self.pt == 3):
+                # Duet RRF v3
+                URL=(f'{self._base_url}'+'/machine/status')
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                j = json.loads(r.text)
+                if 'result' in j: j = j['result']
+                _logger.debug('Number of tools: ' + str(len(j['tools'])))
+            self._homed = machineHomed
+            return( self._homed )
+        except Exception as e:
+            _logger.critical( "Failed to check if machine is homed. " + str(e) )
+            raise SystemExit("Failed to check if machine is homed. " + str(e))
+
+    #################################################################################################################################
+    # Load specified tool on machine, and wait until machine is idle
+    # Tool numbering always starts as 0, 1, 2, ..
+    # If the toolchange takes longer than the class attribute _toolTimeout, then raise a warning in the log and return.
+    #
+    # ATTENTION: 
+    #       This assumes that your machine will not end up in an un-usable / unsteady state if the timeout occurs.
+    #       You may change this behavior by modifying the exception handling for ToolTimeoutException.
+    #
+    # Parameters:
+    #   - toolIndex (integer): index of tool to load
+    #
+    # Returns: NONE
+    #
+    # Raises: 
+    #   - ToolTimeoutException: machine took too long to load the tool
+    def loadTool( self, toolIndex = 0 ):
+        _logger.debug('Called loadTool')
+        # variable to hold current tool loading "virtual" timer
+        toolchangeTimer = 0
+        try:
+            # Send command to controller to load tool specified by parameter
+            _requestedTool = int(toolIndex)
+            self.gCode( "T" + str(_requestedTool) )
+            # Wait until machine is done loading tool and is idle
+            while not self.isIdle() and toolchangeTimer <= self._toolTimeout:
+                self._toolTimeout += 2
+                time.sleep(2)
+            if( toolchangeTimer > self._toolTimeout ):
+                # Request for toolchange timeout, raise exception
+                raise ToolTimeoutException( "Request to change to tool T" + str(toolIndex) + " timed out.")
+            return
+        except ToolTimeoutException as tte:
+            _logger.warning(str(tte))
+            return
+        except ConnectionError as ce:
+            _logger.critical('Connection error in loadTool.')
+            raise SystemExit(ce)
+        except Exception as e1:
+            _logger.critical('Unhandled exception in loadTool: ' + str(e1))
+            raise SystemExit(e1)
+
+    #################################################################################################################################
+    # Unload all tools from machine and wait until machine is idle
+    # Tool numbering always starts as 0, 1, 2, ..
+    # If the unload operation takes longer than the class attribute _toolTimeout, then raise a warning in the log and return.
+    #
+    # ATTENTION: 
+    #       This assumes that your machine will not end up in an un-usable / unsteady state if the timeout occurs.
+    #       You may change this behavior by modifying the exception handling for ToolTimeoutException.
+    #
+    # Parameters: NONE
+    #
+    # Returns: NONE
+    #
+    # Raises: 
+    #   - ToolTimeoutException: machine took too long to load the tool
+    def unloadTools( self ):
+        _logger.debug('Called unloadTools')
+        # variable to hold current tool loading "virtual" timer
+        toolchangeTimer = 0
+        try:
+            # Send command to controller to unload all tools
+            self.gCode( "T-1" )
+            # Wait until machine is done loading tool and is idle
+            while not self.isIdle() and toolchangeTimer <= self._toolTimeout:
+                self._toolTimeout += 2
+                time.sleep(2)
+            if( toolchangeTimer > self._toolTimeout ):
+                # Request for toolchange timeout, raise exception
+                raise ToolTimeoutException( "Request to unload tools timed out!")
+            return
+        except ToolTimeoutException as tte:
+            _logger.warning(str(tte))
+            return
+        except ConnectionError as ce:
+            _logger.critical('Connection error in unloadTools')
+            raise SystemExit(ce)
+        except Exception as e1:
+            _logger.critical('Unhandled exception in unloadTools: ' + str(e1))
+            raise SystemExit(e1)
+
+    #################################################################################################################################
+    # Execute a relative positioning move (G91 in Duet Gcode), and return to absolute positioning.
+    # You may specify if you want to execute a rapid move (G0 command), and set the move speed in feedrate/min.
+    #
+    # Parameters:
+    #   - rapidMove (boolean): enable a G0 command at specified or max feedrate (in Duet CNC/Laser mode)
+    #   - moveSpeed (float): speed at which to execute the move speed in feedrate/min (typically in mm/min)
+    #   - X (float): requested X axis final position
+    #   - Y (float): requested Y axis final position
+    #   - Z (float): requested Z axis final position 
+    #
+    # Returns: NONE
+    #
+    # Raises:
+    #   - HomingException: machine is not homed
+    def moveRelative( self, rapidMove=False, moveSpeed=1000, X=None, Y=None, Z=None ):
+        _logger.debug('Called moveRelative')
+        try:
+            # check if machine has been homed fully
+            if( self.isHomed() is False ):
+                raise HomingException("Machine axes have not been homed properly.")
+            # Create gcode command, starting with rapid flag (G0 / G1)
+            if( rapidMove is True ):
+                moveCommand = "G91 G0 "
+            else:
+                moveCommand = "G91 G1 "
+            # Add each axis position according to passed arguments
+            if( X is not None ):
+                moveCommand += " X" + str(X)
+            if( Y is not None ):
+                moveCommand += " Y" + str(Y)
+            if( Z is not None ):
+                moveCommand += " Z" + str(Z)
+
+            # Add move speed to command
+            moveCommand += " F" + str(moveSpeed) 
+            # Add a return to absolute positioning to finish the command string creation
+            moveCommand += " G90"
+            _logger.debug( moveCommand )
+            # Send command to machine
+            self.gCode(moveCommand)
+        except HomingException as he:
+            _logger.error( he )
+        except Exception as e:
+            if( rapidMove is True ):
+                errorString = "G0 rapid "
+            else:
+                errorString = "G1 linear "
+            errorString += " move failed to relative coordinates: ("
+            if( X is not None ):
+                errorString += " X" + str(X)
+            if( Y is not None ):
+                errorString += " Y" + str(Y)
+            if( Z is not None ):
+                errorString += " Z" + str(Z)
+            errorString += ") at speed: " + str(moveSpeed)
+            _logger.critical(errorString)
+            raise SystemExit(errorString + "\n" + str(e))
+        return
+
+    #################################################################################################################################
+    # Execute an absolute positioning move (G90 in Duet Gcode), and return to absolute positioning.
+    # You may specify if you want to execute a rapid move (G0 command), and set the move speed in feedrate/min.
+    #
+    # Parameters:
+    #   - rapidMove (boolean): enable a G0 command at specified or max feedrate (in Duet CNC/Laser mode)
+    #   - moveSpeed (float): speed at which to execute the move speed in feedrate/min (typically in mm/min)
+    #   - X (float): requested X axis final position
+    #   - Y (float): requested Y axis final position
+    #   - Z (float): requested Z axis final position 
+    #
+    # Returns: NONE
+    #
+    # Raises: NONE
+    def moveAbsolute( self, rapidMove=False, moveSpeed=1000, X=None, Y=None, Z=None ):
+        _logger.debug('Called moveAbsolute')
+        try:
+            # check if machine has been homed fully
+            if( self.isHomed() is False ):
+                raise HomingException("Machine axes have not been homed properly.")
+            # Create gcode command, starting with rapid flag (G0 / G1)
+            if( rapidMove is True ):
+                moveCommand = "G90 G0 "
+            else:
+                moveCommand = "G90 G1 "
+            # Add each axis position according to passed arguments
+            if( X is not None ):
+                moveCommand += " X" + str(X)
+            if( Y is not None ):
+                moveCommand += " Y" + str(Y)
+            if( Z is not None ):
+                moveCommand += " Z" + str(Z)
+
+            # Add move speed to command
+            moveCommand += " F" + str(moveSpeed) 
+            # Add a return to absolute positioning to finish the command string creation
+            moveCommand += " G90"
+            _logger.debug( moveCommand )
+            # Send command to machine
+            self.gCode(moveCommand)
+        except HomingException as he:
+            _logger.error( he )
+        except Exception as e:
+            if( rapidMove is True ):
+                errorString = "G0 rapid "
+            else:
+                errorString = "G1 linear "
+            errorString += " move failed to absolute coordinates: ("
+            if( X is not None ):
+                errorString += " X" + str(X)
+            if( Y is not None ):
+                errorString += " Y" + str(Y)
+            if( Z is not None ):
+                errorString += " Z" + str(Z)
+            errorString += ") at speed: " + str(moveSpeed)
+            _logger.critical(errorString + str(e) )
+            raise SystemExit(errorString + "\n" + str(e))
+        return
+
+    #################################################################################################################################
+    # Limit machine movement to within predefined boundaries as per machine-specific configuration.
+    #
+    # Parameters: NONE
+    #
+    # Returns: NONE
+    #
+    # Raises: NONE
+    def limitAxes( self ):
+        _logger.debug('Called limitAxes')
+        try:
+            self.gCode( "M561 S1" )
+            _logger.debug("Axes limits enforced successfully.")
+        except Exception as e:
+            _logger.error("Failed to limit axes movement: " + str(e))
+            raise SystemExit("Failed to limit axes movement: " + str(e))
+        return
+
+    #################################################################################################################################
+    # Flush controller movement buffer
+    #
+    # Parameters: NONE
+    #
+    # Returns: NONE
+    #
+    # Raises: NONE
+    def flushMovementBuffer( self ):
+        _logger.debug('Called flushMovementBuffer')
+        try:
+            self.gCode( "M400" )
+            _logger.debug("flushMovementBuffer ran successfully.")
+        except Exception as e:
+            _logger.error("Failed to flush movement buffer: " + str(e))
+            raise SystemExit("Failed to flush movement buffer: " + str(e))
+        return
+
+    #################################################################################################################################
+    # Save tool offsets to "firmware"
+    #
+    # Parameters: NONE
+    #
+    # Returns: NONE
+    #
+    # Raises: NONE
+    def saveOffsetsToFirmware( self ):
+        _logger.debug('Called saveOffsetsToFirmware')
+        try:
+            self.gCode( "M500 P10" )
+            _logger.debug("Tool offsets saved to firmware.")
+        except Exception as e:
+            _logger.error("Failed to save offsets: " + str(e))
+            raise SystemExit("Failed to save offsets: " + str(e))
+        return
+
+    #################################################################################################################################
+    # Output JSON representation of printer
+    #
+    # Parameters: NONE
+    #
+    # Returns: JSON object for printer class
+    #
+    # Raises: NONE
+    def getJSON( self ):
+        printerJSON = { 
+            'address': self._base_url,
+            'name': self._name,
+            'nickname': self._nickname,
+            'controller': self._firmwareName,
+            'firmware': self._firmwareVersion,
+            'tools': []
+            }
+        for i, currentTool in enumerate(self._tools):
+            printerJSON['tools'].append(currentTool.getJSON())
+
+        return( printerJSON )
+
+    #################################################################################################################################
+    #################################################################################################################################
+    # Core class functions
+    #
+    # These functions handle sending gcode commands to your controller:
+    #   - gCode: send a single line of gcode
+    #   - gCodeBatch: send an array of gcode strings to your controller and execute them sequentially 
 
     def gCode(self,command):
+        _logger.debug('gCode called')
         if (self.pt == 2):
-            if not self._rrf2:
-                #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                import time
-                sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                r = self.requests.get(sessionURL,timeout=2)
-                buffer_size = 0
-                while buffer_size < 150:
-                    bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                    buffer_request = self.requests.get(bufferURL,timeout=2)
-                    try:
-                        buffer_response = buffer_request.json()
-                        buffer_size = int(buffer_response['buff'])
-                    except:
-                        buffer_size = 149
-                    if buffer_size < 150:
-                        logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                        time.sleep(0.6)
             URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
-            r = self.requests.get(URL,timeout=2)
+            r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            
+            # Send reply to clear buffer
             replyURL = (f'{self._base_url}'+'/rr_reply')
-            reply = self.requests.get(replyURL,timeout=2)
-            if not self._rrf2:
-                #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-                r2 = self.requests.get(endsessionURL,timeout=2)
+            r2 = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
         if (self.pt == 3):
             URL=(f'{self._base_url}'+'/machine/code/')
             r = self.requests.post(URL, data=command)
         if (r.ok):
-           return(0)
+            return 0
         else:
-            logger.warning("Error running gCode command: return code " + str(r.status_code) + ' - ' + str(r.reason))
-            return(r.status_code)
+            _logger.error("Error running gCode command: return code " + str(r.status_code) + ' - ' + str(r.reason))
+            raise SystemExit("Error running gCode command: return code " + str(r.status_code) + ' - ' + str(r.reason))
+        return -1
     
     def gCodeBatch(self,commands):
+        if( self.pt == 2 ): 
+            # Start session to speed things up
+            replyURL = (f'{self._base_url}'+'/rr_connect')
+            r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+            
         for command in commands:
             if (self.pt == 2):
-                if not self._rrf2:
-                #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    import time
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        buffer_response = buffer_request.json()
-                        buffer_size = int(buffer_response['buff'])
-                        time.sleep(0.5)
                 URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
-                r = self.requests.get(URL,timeout=2)
+                r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Send reply to clear buffer
                 replyURL = (f'{self._base_url}'+'/rr_reply')
-                reply = self.requests.get(replyURL,timeout=2)
-                json_response = r.json()
-                buffer_size = int(json_response['buff'])
-                #print( "Buffer: ", buffer_size )
-                #print( command, ' -> ', reply )
+                r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
             if (self.pt == 3):
                 URL=(f'{self._base_url}'+'/machine/code/')
                 r = self.requests.post(URL, data=command)
             if not (r.ok):
-                logger.warning("Error in gCodeBatch command: " + str(r.status_code) + str(r.reason) )
-                endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-                r2 = self.requests.get(endsessionURL,timeout=2)
-                return(r.status_code)
-        if not self._rrf2:
+                _logger.Error("Error in gCodeBatch command: " + str(r.status_code) + str(r.reason) )
+
+        if( self.pt == 2 ):
             #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
             endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-            r2 = self.requests.get(endsessionURL,timeout=2)
+            r = self.session.get(endsessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
+    #################################################################################################################################
+    #################################################################################################################################
+    # ZTATP Core atomimc class functions
+    #
+    # These are critical functions used by ZTATP to set up probes, check for odd RRF versions that have unique syntax requirements,
+    # and are use to set/rest config file changes for the endstops to ensure correct operation of the ZTATP alignment scripts.
 
     def getFilenamed(self,filename):
         if (self.pt == 2):
             URL=(f'{self._base_url}'+'/rr_download?name='+filename)
         if (self.pt == 3):
             URL=(f'{self._base_url}'+'/machine/file/'+filename)
-        r = self.requests.get(URL,timeout=2)
+        r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
         return(r.text.splitlines()) # replace('\n',str(chr(0x0a))).replace('\t','    '))
-
-    def getTemperatures(self):
-        if (self.pt == 2):
-            URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
-            logger.error('getTemperatures no yet implemented for RRF V2 printers.')
-            return('Error Dx05: getTemperatures not implemented (yet) for RRF V2 printers.')
-        if (self.pt == 3):
-            URL=(f'{self._base_url}'+'/machine/status')
-            r  = self.requests.get(URL,timeout=2)
-            j  = self.json.loads(r.text)
-            if 'result' in j: j = j['result']
-            jsa=j['sensors']['analog']
-            return(jsa)
         
     def checkDuet2RRF3(self):
         if (self.pt == 2):
             URL=(f'{self._base_url}'+'/rr_status?type=2')
-            r = self.requests.get(URL,timeout=2)
-            j = self.json.loads(r.text)
+            r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            j = json.loads(r.text)
             s=j['firmwareVersion']
+            
+            # Send reply to clear buffer
+            replyURL = (f'{self._base_url}'+'/rr_reply')
+            r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+
             if s == "3.2":
                 return True
             else:
                 return False
 
-    def getCurrentTool(self):
-        import time
-        logger.debug('Starting getCurrentTool')
-        try:
-            if (self.pt == 2):
-                if not self._rrf2:
-                    #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    if not r.ok:
-                        logger.warning('Error in getCurrentTool: '  + str(r))
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        try:
-                            buffer_response = buffer_request.json()
-                            buffer_size = int(buffer_response['buff'])
-                        except:
-                            buffer_size = 149
-                        replyURL = (f'{self._base_url}'+'/rr_reply')
-                        reply = self.requests.get(replyURL,timeout=2)
-                        if buffer_size < 150:
-                            logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                            time.sleep(0.6)
-                while self.getStatus() not in "idle":
-                    logger.debug('Machine not idle, sleeping 0.5 seconds.')
-                    time.sleep(0.5)
-                URL=(f'{self._base_url}'+'/rr_status?type=2')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                replyURL = (f'{self._base_url}'+'/rr_reply')
-                reply = self.requests.get(replyURL,timeout=2)
-                ret=j['currentTool']
-                logger.debug('Found current tool - exiting.')
-                return(ret)
-            if (self.pt == 3):
-                URL=(f'{self._base_url}'+'/machine/status')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                if 'result' in j: j = j['result']
-                ret=j['state']['currentTool']
-                logger.debug('Found current tool - exiting.')
-                return(ret)
-        except Exception as e1:
-            logger.error('Unhandled exception in getCurrentTool: ' + str(e1))
+    #################################################################################################################################
+    # The following methods provide services built on the ZTATP Core atomimc class functions. 
 
-    def getHeaters(self):
-        import time
-        try:
-            if (self.pt == 2):
-                if not self._rrf2:
-                    #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    if not r.ok:
-                        logger.warning('Error in getHeaters session: ' + str(r))
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        try:
-                            buffer_response = buffer_request.json()
-                            buffer_size = int(buffer_response['buff'])
-                        except:
-                            buffer_size = 149
-                        replyURL = (f'{self._base_url}'+'/rr_reply')
-                        reply = self.requests.get(replyURL,timeout=2)
-                        if buffer_size < 150:
-                            logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                            time.sleep(0.6)
-                while self.getStatus() not in "idle":
-                    time.sleep(0.5)
-                URL=(f'{self._base_url}'+'/rr_status')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                replyURL = (f'{self._base_url}'+'/rr_reply')
-                reply = self.requests.get(replyURL,timeout=2)
-                ret=j['heaters']
-                return(ret)
-            if (self.pt == 3):
-                URL=(f'{self._base_url}'+'/machine/status')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                if 'result' in j: j = j['result']
-                ret=j['heat']['heaters']
-                return(ret)
-        except Exception as e1:
-            logger.error('Unhandled exception in getHeaters: ' + str(e1))
-
-    def isIdle(self):
-        try:
-            if (self.pt == 2):
-                if not self._rrf2:
-                    #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                    r = self.requests.get(sessionURL,timeout=2)
-                    if not r.ok:
-                        logger.warning('Error in isIdle: ' + str(r))
-                    buffer_size = 0
-                    while buffer_size < 150:
-                        bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                        buffer_request = self.requests.get(bufferURL,timeout=2)
-                        try:
-                            buffer_response = buffer_request.json()
-                            buffer_size = int(buffer_response['buff'])
-                        except:
-                            buffer_size = 149
-                        replyURL = (f'{self._base_url}'+'/rr_reply')
-                        reply = self.requests.get(replyURL,timeout=2)
-                        if buffer_size < 150:
-                            logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                            time.sleep(0.6)
-                URL=(f'{self._base_url}'+'/rr_status?type=2')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                s=j['status']
-                replyURL = (f'{self._base_url}'+'/rr_reply')
-                reply = self.requests.get(replyURL,timeout=2)
-                if not self._rrf2:
-                    #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                    endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-                    r2 = self.requests.get(endsessionURL,timeout=2)
-                    if not r2.ok:
-                        logger.error('Unhandled exception in isIdle: ' + str(r2))
-                        return False
-                if ('I' in s):
-                    return True
-                else: 
-                    return False
-
-            if (self.pt == 3):
-                URL=(f'{self._base_url}'+'/machine/status')
-                r = self.requests.get(URL,timeout=2)
-                j = self.json.loads(r.text)
-                if 'result' in j: 
-                    j = j['result']
-                status = str(j['state']['status'])
-                if status.upper() == 'IDLE':
-                    return True
-                else:
-                    return False
-        except Exception as e1:
-            logger.error('Unhandled exception in isIdle: ' + str(e1))
-            return False
-####
-# The following methods provide services built on the atomics above. 
-####
-
-
+    # _nilEndStop
     # Given a line from config g that defines an endstop (N574) or Z probe (M558),
     # Return a line that will define the same thing to a "nil" pin, i.e. undefine it
     def _nilEndstop(self,configLine):
         ret = ''
-        for each in [word for word in configLine.split()]: ret = ret + (each if (not (('P' in each[0]) or ('p' in each[0]))) else 'P"nil"') + ' '
+        for each in [word for word in configLine.split()]: 
+            ret = ret + (each if (not (('P' in each[0]) or ('p' in each[0]))) else 'P"nil"') + ' '
         return(ret)
 
     def clearEndstops(self):
@@ -568,10 +963,8 @@ class DuetWebAPI:
         for each in [line for line in c if (('M574 ' in line) or ('M558 ' in line)                   )]:
             commandBuffer.append(self._nilEndstop(each))
         self.gCodeBatch(commandBuffer)
-    
 
     def resetEndstops(self):
-        import time
         c = self.getFilenamed('/sys/config.g')
         commandBuffer = []
         for each in [line for line in c if (('M574 ' in line) or ('M558 ' in line)                    )]:
@@ -609,23 +1002,26 @@ class DuetWebAPI:
             if not self._rrf2:
                 #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
                 sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
-                r = self.requests.get(sessionURL,timeout=2)
+                r = self.session.get(sessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
+                rawdata = r.json()
+                rawdata = json.dumps(rawdata)
+                _logger.debug( 'Response from connect: ' + rawdata )
                 buffer_size = 0
-                while buffer_size < 150:
-                    bufferURL = (f'{self._base_url}'+'/rr_gcode')
-                    buffer_request = self.requests.get(bufferURL,timeout=2)
-                    try:
-                        buffer_response = buffer_request.json()
-                        buffer_size = int(buffer_response['buff'])
-                    except:
-                        buffer_size = 149
-                    if buffer_size < 150:
-                        logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
-                        time.sleep(0.6)
+                # while buffer_size < 150:
+                #     bufferURL = (f'{self._base_url}'+'/rr_gcode')
+                #     buffer_request = self.session.get(bufferURL, timeout=(self._requestTimeout,self._responseTimeout) )
+                #     try:
+                #         buffer_response = buffer_request.json()
+                #         buffer_size = int(buffer_response['buff'])
+                #     except:
+                #         buffer_size = 149
+                #     if buffer_size < 150:
+                #         _logger.debug('Buffer low - adding 0.6s delay before next call: ' + str(buffer_size))
+                #         time.sleep(0.6)
             URL=(f'{self._base_url}'+'/rr_gcode?gcode=G31')
-            r = self.requests.get(URL,timeout=2)
+            r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
             replyURL = (f'{self._base_url}'+'/rr_reply')
-            reply = self.requests.get(replyURL,timeout=2)
+            reply = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
             # Reply is of the format:
             # "Z probe 0: current reading 0, threshold 500, trigger height 0.000, offsets X0.0 Y0.0 U0.0"
             start = reply.find('trigger height')
@@ -634,7 +1030,7 @@ class DuetWebAPI:
             if not self._rrf2:
                 #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
                 endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
-                r2 = self.requests.get(endsessionURL,timeout=2)
+                r2 = self.session.get(endsessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
         if (self.pt == 3):
             URL=(f'{self._base_url}'+'/machine/code/')
             r = self.requests.post(URL, data='G31')
@@ -649,6 +1045,6 @@ class DuetWebAPI:
         else:
             _errCode = float(r.status_code)
             _errMsg = r.reason
-            logger.error("Bad resposne in getTriggerHeight: " + str(r.status_code) + ' - ' + str(r.reason))
+            _logger.error("Bad resposne in getTriggerHeight: " + str(r.status_code) + ' - ' + str(r.reason))
             return (_errCode, _errMsg, None )
     
