@@ -14,6 +14,7 @@
 #
 # Requires Python3
 from csv import excel_tab
+from http.client import HTTPConnection
 import logging
 import requests
 from requests.adapters import HTTPAdapter
@@ -201,6 +202,8 @@ class DuetWebAPI:
         except UnknownController as uc:
             _logger.critical( "Unknown controller at " + self._base_url + " - does not appear to be an RRF2 or RRF3 printer")
             raise SystemExit(uc)
+        except HTTPConnection as ht:
+            _logger.error('Connection error:    ' + str(ht))
         except Exception as e:
             # Catastrophic error. Bail.
             _logger.critical( str(e) )
