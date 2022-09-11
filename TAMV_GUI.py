@@ -64,6 +64,7 @@ from time import sleep, time
 import datetime
 import json
 import time
+import copy
 
 # graphing imports
 import matplotlib
@@ -295,12 +296,13 @@ class SettingsDialog(QDialog):
         self.setWindowTitle( 'TAMV Configuration Settings' )
         
         # Fetch settings object from parent
-        self.settingsObject = self.parent().options.copy()
-
+        self.settingsObject = copy.deepcopy(self.parent().options)
+        self.originalSettingsObject = copy.deepcopy(self.parent().options)
+        
         # Set layout details
         self.layout = QVBoxLayout()
         self.layout.setSpacing(3)
-
+        
         ############# TAB SETUP #############
         # Create tabs layout
         self.tabs = QTabWidget()
@@ -318,12 +320,12 @@ class SettingsDialog(QDialog):
         self.tabs.addTab( self.settingsTab, 'Machines' )
         if( addPrinter is False ):
             self.tabs.addTab( self.camerasTab, 'Cameras' )
-
+        
         # Add tabs layout to window
         self.layout.addWidget(self.tabs)
         # apply layout
         self.setLayout( self.layout )
-
+        
         ############# POPULATE TABS
         # Create camera items
         if( addPrinter is False ):
@@ -344,13 +346,13 @@ class SettingsDialog(QDialog):
         # Close button
         self.close_button = QPushButton( 'Cancel' )
         self.close_button.setToolTip( 'Cancel changes and return to main program.' )
-        self.close_button.clicked.connect(self.closeSettingsWindow)
+        self.close_button.clicked.connect(self.close)
         self.close_button.setObjectName( 'terminate' )
-
+        
         # WINDOW BUTTONS
         self.layout.addWidget(self.save_button)
         self.layout.addWidget(self.close_button)
-
+        
         # OK Cancel buttons
         #self.layout.addWidget(self.buttonBox)
         pass
@@ -382,7 +384,6 @@ class SettingsDialog(QDialog):
         #HBHBHBHB: need to pass actual video source string object from parameter helper function!!!
         #self.camera_combo.currentIndexChanged.connect(self.parent().video_thread.changeVideoSrc)
         
-    
         # Get cameras button
         self.camera_button = QPushButton( 'Get cameras' )
         self.camera_button.clicked.connect(self.getCameras)
@@ -430,7 +431,7 @@ class SettingsDialog(QDialog):
         self.reset_button = QPushButton("Reset to defaults")
         self.reset_button.setToolTip( 'Reset camera settings to defaults.' )
         self.reset_button.clicked.connect(self.resetDefaults)
-
+        
         # Camera drop-down
         self.camera_box = QGroupBox( 'Active camera source' )
         self.camerasTab.layout.addWidget(self.camera_box)
@@ -438,7 +439,7 @@ class SettingsDialog(QDialog):
         self.camera_box.setLayout(cmbox)
         cmbox.addWidget(self.camera_combo)
         cmbox.addWidget(self.camera_button)
-
+        
         # Brightness
         self.brightness_box =QGroupBox( 'Brightness' )
         self.camerasTab.layout.addWidget(self.brightness_box)
@@ -478,7 +479,7 @@ class SettingsDialog(QDialog):
             self.defaultIndex = 0
             for i, device in enumerate(self.settingsObject['printer']):
                 if( device['default'] == 1 ):
-                    printer_description = 'Default: ' + device['nickname']
+                    printer_description = '(default) ' + device['nickname']
                     self.default_printer = device
                     self.defaultIndex = i
                 else:
@@ -488,30 +489,51 @@ class SettingsDialog(QDialog):
             self.printer_combo.setCurrentIndex(self.defaultIndex)
             if( self.default_printer is None ):
                 self.default_printer = self.settingsObject['printer'][0]
+            
+            # Create a layout for the printer combo box, and the add and delete buttons
+            topbox = QGroupBox()
+            toplayout = QHBoxLayout()
+            topbox.setLayout( toplayout )
+            toplayout.addWidget( self.printer_combo )
 
+            # Add button
+            self.add_printer_button = QPushButton('+')
+            self.add_printer_button.setStyleSheet('background-color: green')
+            self.add_printer_button.clicked.connect(self.addProfile)
+            self.add_printer_button.setToolTip('Add a new profile..')
+            self.add_printer_button.setFixedWidth(30)
+            toplayout.addWidget(self.add_printer_button)
+
+            # Delete button
+            self.delete_printer_button = QPushButton('X')
+            self.delete_printer_button.setStyleSheet('background-color: red')
+            self.delete_printer_button.clicked.connect(self.deleteProfile)
+            self.delete_printer_button.setToolTip('Delete current profile..')
+            self.delete_printer_button.setFixedWidth(30)
+            toplayout.addWidget(self.delete_printer_button)
+            
             # add printer combo box to layout
-            self.settingsTab.layout.addWidget( self.printer_combo )
-
+            self.settingsTab.layout.addWidget( topbox )
+        
         # Printer default checkbox
-        self.printerDefault = QCheckBox()
-        if( self.defaultIndex == 0 ):
+        self.printerDefault = QCheckBox("&Default", self)
+        if( newPrinter is False ):
             self.printerDefault.setChecked(True)
-        else:
-            self.printerDefault.setChecked(False)
-        self.printerDefaultLabel = QLabel( 'Default: ')
+            self.printerDefault.stateChanged.connect( self.checkDefaults )
         self.defaultBox = QGroupBox()
         self.settingsTab.layout.addWidget(self.defaultBox)
+        
         dfbox = QHBoxLayout()
+        dfbox.setAlignment(Qt.AlignLeft)
         self.defaultBox.setLayout(dfbox)
-        dfbox.addWidget(self.printerDefaultLabel)
         dfbox.addWidget(self.printerDefault)
-
+        
         # Printer nickname
         if( newPrinter is False ):
             self.printerNickname = QLineEdit( self.default_printer['nickname'] )
         else: 
             self.printerNickname = QLineEdit()
-            self.printerNickname.setPlaceholderText('Enter an alias for your printer')
+        self.printerNickname.setPlaceholderText('Enter an alias for your printer')
         self.printerNickname_label = QLabel('Nickname: ')
         self.printerNickname_box =QGroupBox()
         self.settingsTab.layout.addWidget(self.printerNickname_box)
@@ -519,13 +541,13 @@ class SettingsDialog(QDialog):
         self.printerNickname_box.setLayout(nnbox)
         nnbox.addWidget(self.printerNickname_label)
         nnbox.addWidget(self.printerNickname)
-
+        
         # Printer address
         if( newPrinter is False ):
             self.printerAddress = QLineEdit( self.default_printer['address'] )
         else:
             self.printerAddress = QLineEdit()
-            self.printerAddress.setPlaceholderText('Enter printer interface or IP')
+        self.printerAddress.setPlaceholderText('Enter printer interface or IP')
         self.printerAddress_label = QLabel('Address: ')
         self.printerAddress_box =QGroupBox()
         self.settingsTab.layout.addWidget(self.printerAddress_box)
@@ -533,27 +555,10 @@ class SettingsDialog(QDialog):
         self.printerAddress_box.setLayout(adbox)
         adbox.addWidget(self.printerAddress_label)
         adbox.addWidget(self.printerAddress)
-
-        # Printer name
-        if( newPrinter is False ):
-            self.printerName = QLineEdit( self.default_printer['name'] )
-        else:
-            self.printerName = QLineEdit()
-            self.printerName.setPlaceholderText('Value will be polled from machine..')
-        self.printerName.setEnabled(False)
-        self.printerName_label = QLabel('Name: ')
-        self.printerName_box =QGroupBox()
-        self.settingsTab.layout.addWidget(self.printerName_box)
-        if( newPrinter is True ):
-            self.printerName_box.setVisible(False)
-        pnbox = QHBoxLayout()
-        self.printerName_box.setLayout(pnbox)
-        pnbox.addWidget(self.printerName_label)
-        pnbox.addWidget(self.printerName)
-
-        # # Printer controller
+        
+        # Printer controller
         self.controllerName = QComboBox()
-        self.controllerName.setToolTip( 'Select which firmware your machine is running.')
+        self.controllerName.setToolTip( 'Machine firmware family/category')
         self.controllerName.addItem('RRF/Duet')
         self.controllerName.addItem('klipper')
         if( newPrinter is False ):
@@ -570,59 +575,171 @@ class SettingsDialog(QDialog):
         self.controllerName_box.setLayout(cnbox)
         cnbox.addWidget(self.controllerName_label)
         cnbox.addWidget(self.controllerName)
-        
-        # Printer firmware
-        if( newPrinter is False ):
-            self.firmwareName = QLineEdit( self.default_printer['firmware'] )
-        else:
-            self.firmwareName = QLineEdit()
-            self.firmwareName.setPlaceholderText("Value will be polled from machine..")
-        self.firmwareName.setEnabled(False)
-        self.firmwareName_label = QLabel('Firmware version: ')
-        self.firmwareName_box =QGroupBox()
-        self.settingsTab.layout.addWidget(self.firmwareName_box)
-        if( newPrinter is True ):
-            self.firmwareName_box.setVisible(False)
-        fnbox = QHBoxLayout()
-        self.firmwareName_box.setLayout(fnbox)
-        fnbox.addWidget(self.firmwareName_label)
-        fnbox.addWidget(self.firmwareName)
 
+        # Printer name
+        if( newPrinter is False ):
+            self.printerName = QLineEdit( self.default_printer['name'] )
+        else:
+            self.printerName = QLineEdit()
+        self.printerName.setPlaceholderText('(pulled from machine..)')
+        self.printerName.setStyleSheet('font: italic')
+        self.printerName.setEnabled(False)
+        self.printerName_label = QLabel('Name: ')
+        self.printerName_box =QGroupBox()
+        self.settingsTab.layout.addWidget(self.printerName_box)
+        if( newPrinter is True ):
+            self.printerName_box.setVisible(False)
+        pnbox = QHBoxLayout()
+        self.printerName_box.setLayout(pnbox)
+        pnbox.addWidget(self.printerName_label)
+        pnbox.addWidget(self.printerName)
+        
+        # Printer firmware version identifier
+        if( newPrinter is False ):
+            self.versionName = QLineEdit( self.default_printer['version'] )
+        else:
+            self.versionName = QLineEdit()
+        self.versionName.setPlaceholderText("(pulled from machine..)")
+        self.versionName.setStyleSheet('font: italic')
+        self.versionName.setEnabled(False)
+        self.versionName_label = QLabel('Firmware version: ')
+        self.versionName_box =QGroupBox()
+        self.settingsTab.layout.addWidget(self.versionName_box)
+        if( newPrinter is True ):
+            self.versionName_box.setVisible(False)
+        fnbox = QHBoxLayout()
+        self.versionName_box.setLayout(fnbox)
+        fnbox.addWidget(self.versionName_label)
+        fnbox.addWidget(self.versionName)
+        
         if( newPrinter is False ):
             # handle selecting a new machine from the dropdown
-            self.printer_combo.currentIndexChanged.connect(self.refreshPrinters)
+            self.printer_combo.activated.connect(self.refreshPrinters)
             self.printerAddress.editingFinished.connect(self.updateAttributes)
             self.printerName.editingFinished.connect(self.updateAttributes)
             self.printerNickname.editingFinished.connect(self.updateAttributes)
             self.controllerName.activated.connect(self.updateAttributes)
-            self.firmwareName.editingFinished.connect(self.updateAttributes)
+            self.versionName.editingFinished.connect(self.updateAttributes)
             self.printerDefault.stateChanged.connect(self.updateAttributes)
 
-    def refreshPrinters( self, index ):
-        self.printerAddress.setText(self.settingsObject['printer'][index]['address'])
-        self.printerName.setText(self.settingsObject['printer'][index]['name'])
-        self.printerNickname.setText(self.settingsObject['printer'][index]['nickname'])
-        if( self.settingsObject['printer'][index]['controller'] == 'RRF/Duet' ):
-            self.controllerName.setCurrentIndex(0)
+    def checkDefaults( self ):
+        if( self.printerDefault.isChecked() ):
+            index = self.printer_combo.currentIndex()
+            for i,machine in enumerate(self.settingsObject['printer']):
+                machine['default'] = 0
+                self.printer_combo.setItemText( i, self.settingsObject['printer'][i]['nickname'])
+            self.settingsObject['printer'][index]['default']=1
+            self.printer_combo.setItemText(index,'(default) ' + self.settingsObject['printer'][index]['nickname'])
         else:
-            self.controllerName.setCurrentIndex(1)
-        self.firmwareName.setText(self.settingsObject['printer'][index]['firmware'])
+            # User de-selected default machine
+            index = self.printer_combo.currentIndex()
+            if( index > -1 ):
+                self.printer_combo.setItemText(self.printer_combo.currentIndex(),self.settingsObject['printer'][self.printer_combo.currentIndex()]['nickname'])
+
+    def addProfile(self):
+        # Create a new printer profile object
+        newPrinter = { 
+            'address': '', 
+            'name': '',
+            'nickname': 'New printer..',
+            'controller' : 'RRF/Duet', 
+            'version': '',
+            'default': 0,
+            'tools': [
+                { 
+                    'number': 0, 
+                    'name': 'Tool 0', 
+                    'nozzleSize': 0.4, 
+                    'offsets': [0,0,0] 
+                } ]
+            }
+        # Add new profile to settingsObject list
+        self.settingsObject['printer'].append( newPrinter )
+        # enable all text fields
+        self.printerDefault.setDisabled(False)
+        self.printerAddress.setDisabled(False)
+        self.printerNickname.setDisabled(False)
+        self.controllerName.setDisabled(False)
+        self.delete_printer_button.setDisabled(False)
+        self.delete_printer_button.setStyleSheet('background-color: red')
+        # update combobox
+        self.printer_combo.addItem('New printer..')
+        self.printer_combo.setCurrentIndex( len(self.settingsObject['printer'])-1 )
+        self.refreshPrinters( self.printer_combo.currentIndex() )
+
+    def deleteProfile( self ):
+        index = self.printer_combo.currentIndex()
         if( self.settingsObject['printer'][index]['default'] == 1 ):
-            self.printerDefault.setChecked(True)
+            wasDefault = True
         else:
+            wasDefault = False
+        del self.settingsObject['printer'][index]
+        self.printer_combo.removeItem(index)
+        index = self.printer_combo.currentIndex()
+        if( index > -1 and len(self.settingsObject['printer']) > 0):
+            if( wasDefault ):
+                self.settingsObject['printer'][0]['default'] = 1
+            self.refreshPrinters(self.printer_combo.currentIndex())
+        else:
+            # no more profiles found, display empty fields
             self.printerDefault.setChecked(False)
+            self.printerAddress.setText('')
+            self.printerName.setText('')
+            self.printerNickname.setText('')
+            self.controllerName.setCurrentIndex(0)
+            self.versionName.setText('')
+            # disable all fields
+            self.printerDefault.setDisabled(True)
+            self.printerAddress.setDisabled(True)
+            self.printerName.setDisabled(True)
+            self.printerNickname.setDisabled(True)
+            self.controllerName.setDisabled(True)
+            self.versionName.setDisabled(True)
+            self.printer_combo.addItem('+++ Add a new profile --->')
+            self.printer_combo.setCurrentIndex(0)
+            self.delete_printer_button.setDisabled(True)
+            self.delete_printer_button.setStyleSheet('background-color: none')
+        pass
+
+    def refreshPrinters( self, index ):
+        if( index >= 0 ):
+            if( len(self.settingsObject['printer'][index]['address']) > 0 ):
+                self.printerAddress.setText(self.settingsObject['printer'][index]['address'])
+            else:
+                self.printerAddress.clear()
+            if( len(self.settingsObject['printer'][index]['name']) > 0):
+                self.printerName.setText(self.settingsObject['printer'][index]['name'])
+            else:
+                self.printerName.clear()
+            if( len(self.settingsObject['printer'][index]['nickname']) > 0 ):
+                self.printerNickname.setText(self.settingsObject['printer'][index]['nickname'])
+            else:
+                self.printerNickname.clear()
+            if( self.settingsObject['printer'][index]['controller'] == 'RRF/Duet' ):
+                self.controllerName.setCurrentIndex(0)
+            else:
+                self.controllerName.setCurrentIndex(1)
+            if( len(self.settingsObject['printer'][index]['version']) > 0 ):
+                self.versionName.setText(self.settingsObject['printer'][index]['version'])
+            else:
+                self.versionName.clear()
+            if( self.settingsObject['printer'][index]['default'] == 1 ):
+                self.printerDefault.setChecked(True)
+            else:
+                self.printerDefault.setChecked(False)
 
     def updateAttributes( self ):
         index = self.printer_combo.currentIndex()
-        self.settingsObject['printer'][index]['address'] = self.printerAddress.text()
-        self.settingsObject['printer'][index]['name'] = self.printerName.text()
-        self.settingsObject['printer'][index]['nickname'] = self.printerNickname.text()
-        self.settingsObject['printer'][index]['controller'] = self.controllerName.itemText(self.controllerName.currentIndex())
-        self.settingsObject['printer'][index]['firmware'] = self.firmwareName.text()
-        if( self.printerDefault.isChecked() ):
-            self.settingsObject['printer'][index]['default'] = 1
-        else:
-            self.settingsObject['printer'][index]['default'] = 0
+        if( index > -1 ):
+            self.settingsObject['printer'][index]['address'] = self.printerAddress.text()
+            self.settingsObject['printer'][index]['name'] = self.printerName.text()
+            self.settingsObject['printer'][index]['nickname'] = self.printerNickname.text()
+            self.settingsObject['printer'][index]['controller'] = self.controllerName.itemText(self.controllerName.currentIndex())
+            self.settingsObject['printer'][index]['version'] = self.versionName.text()
+            if( self.printerDefault.isChecked() ):
+                self.settingsObject['printer'][index]['default'] = 1
+            else:
+                self.settingsObject['printer'][index]['default'] = 0
 
     def resetDefaults(self):
         self.parent().video_thread.resetProperties()
@@ -674,7 +791,6 @@ class SettingsDialog(QDialog):
         self.hue_label.setText(str(parameter))
 
     def getCameras(self):
-
         #HBHBHB: Clean up the handling of this function to the saved list of objects!
         #           to be applied when you save the settings!!
         # checks the first 6 indexes.
@@ -707,6 +823,54 @@ class SettingsDialog(QDialog):
         self.camera_combo.setCurrentText(original_camera_description)
 
     def updatePrinterObjects(self):
+        defaultSet = False
+        multipleDefaults = False
+        defaultMessage = "More than one connection is set as the default option.\n\nPlease review the connections for:\n\n"
+        # Do some data cleaning
+        for machine in self.settingsObject['printer']:
+            # Check if user forgot a nickname, default to printer address
+            if( machine['nickname'] is None or machine['nickname'] == "" ):
+                machine['nickname'] = machine['address']
+            # Do some checking to catch multiple default printers set at the same time
+            if( machine['default'] == 1 ):
+                defaultMessage += "  - " + machine['nickname'] + "\n"
+                if( defaultSet ):
+                    multipleDefaults = True
+                else:
+                    defaultSet = True
+        # More than one profile is set as the default. Alert user, don't save, and return to the settings screen
+        if( multipleDefaults ):
+            msgBox = QMessageBox()
+            msgBox.setIcon( QMessageBox.Warning )
+            msgBox.setText( defaultMessage )
+            msgBox.setWindowTitle('ERROR: Too many default connections')
+            msgBox.setStandardButtons( QMessageBox.Ok )
+            msgBox.exec()
+            return
+        # No default printed was defined, so set first item to default
+        if( defaultSet is False and len(self.settingsObject['printer']) > 0 ):
+            self.settingsObject['printer'][0]['default'] = 1
+        elif( len(self.settingsObject['printer']) == 0 ):
+            # All profiles have been cleared. Add a dummy template
+            #HBHBHBHB
+            self.settingsObject['printer'] = [
+                { 
+                'address': 'http://localhost', 
+                'name': '',
+                'nickname': 'Default profile',
+                'controller' : 'RRF/Duet', 
+                'version': '',
+                'default': 1,
+                'tools': [
+                    { 
+                        'number': 0, 
+                        'name': 'Tool 0', 
+                        'nozzleSize': 0.4, 
+                        'offsets': [0,0,0] 
+                    } ]
+                }
+            ]
+            pass
         self.update_settings.emit( self.settingsObject )
         self.accept()
 
@@ -717,7 +881,7 @@ class SettingsDialog(QDialog):
                 'name': '',
                 'nickname': self.printerNickname.text(),
                 'controller' : str(self.controllerName.currentText()), 
-                'firmware': '',
+                'version': '',
                 'default': int(self.printerDefault.isChecked()),
                 'tools': [
                     { 
@@ -735,14 +899,15 @@ class SettingsDialog(QDialog):
         self.update_settings.emit( self.settingsObject )
         self.accept()
 
-    def closeSettingsWindow(self):
-        self.parent().updateStatusbar( 'Camera changes discarded.' )
+    def closeEvent(self, event):
+        self.parent().updateStatusbar( 'Changes to settings discarded.' )
+        self.settingsObject = self.originalSettingsObject
         self.reject()
 
 ##############################################################################################################################################################
 # Connection dialog box
 class ConnectionDialog(QDialog):
-    # signal to trigger saving settings to file
+    # signal to trigger creating a new connection profile
     new_printer = pyqtSignal()
     # signal to connect to machine
     connect_printer = pyqtSignal(int)
@@ -754,7 +919,7 @@ class ConnectionDialog(QDialog):
         self.setWindowTitle( 'Connect to a machine' )
         
         # Fetch settings object from parent
-        self.csettingsObject = self.parent().options.copy()
+        self.csettingsObject = copy.deepcopy(self.parent().options)
 
         # Set layout details
         self.layout = QVBoxLayout()
@@ -2435,11 +2600,6 @@ class App(QMainWindow):
                     temp = machine['controller']
                 except KeyError:
                     machine['controller'] = 'RRF/Duet'
-                # Check if firmware doesn't exist
-                try:
-                    temp = machine['firmware']
-                except KeyError:
-                    machine['firmware'] = ''
                 # Check if version doesn't exist
                 try:
                     temp = machine['version']
@@ -2450,10 +2610,6 @@ class App(QMainWindow):
                     temp = machine['tools']
                 except KeyError:
                     machine['tools'] = [ { 'number': 0, 'name': 'Tool 0', 'nozzleSize': 0.4, 'offsets': [0,0,0] } ]
-                
-                
-                
-
             ( _errCode, _errMsg, self.printerURL ) = self.cleanPrinterURL(tempURL)
             if _errCode > 0:
                 # invalid input
@@ -2468,7 +2624,7 @@ class App(QMainWindow):
             # create a camera array
             self.options['camera'] = []
             self.options['camera'].append( {
-                'video_src': 1,
+                'video_src': 0,
                 'display_width': '640',
                 'display_height': '480',
                 'default': 1
@@ -2481,7 +2637,7 @@ class App(QMainWindow):
                 'name': 'My Duet',
                 'nickname': 'Default',
                 'controller' : 'RRF/Duet', 
-                'firmware': '',
+                'version': '',
                 'default': 1,
                 'tools': [
                     { 
