@@ -11,7 +11,6 @@
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 # Requires Python3
-from csv import excel_tab
 import logging
 import requests
 from requests.adapters import HTTPAdapter
@@ -62,6 +61,7 @@ class MyDriverAPI:
 
         # Here are the required class attributes. These get saved to settings.json
         self._base_url = "whatever you want - this gets called from the dialog box when connecting - required"
+        self._password = "password to connect to machine (if applicable) - can be empty string"
         self._name = "Printer name according to firmware (if applicable) - can be empty string"
         self._nickname = "Printer nickname - future use - can be empty string"
         self._firmwareName = "Firmware name - can be empty string"
@@ -575,6 +575,7 @@ class MyDriverAPI:
     def getJSON( self ):
         printerJSON = { 
             'address': self._base_url,
+            'password': self._password,
             'name': self._name,
             'nickname': self._nickname,
             'controller': self._firmwareName,
