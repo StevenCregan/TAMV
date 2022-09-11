@@ -95,6 +95,7 @@ class DuetWebAPI:
     _nickname = 'Default'
     _firmwareName = 'RRF'
     _firmwareVersion = ''
+    _password = 'reprap'
     # special internal flag to handle Duet 2 boards running RRF v3 firmware - only needed for Duet controllers
     # you may delete this variable if extending API to other boards
     _rrf2 = False
@@ -118,10 +119,11 @@ class DuetWebAPI:
     # 
     # Raises: 
     #   - UnknownController: if fails to connect
-    def __init__( self, baseURL, nickname='Default' ):
+    def __init__( self, baseURL, nickname='Default', password='reprap' ):
         _logger.debug('Starting DuetWebAPI..')
         # parse input parameters
         self._base_url = baseURL
+        self.password = password
         self._nickname = nickname
         self._tools = []
         # Name as defined in RRF config.g file
@@ -134,6 +136,9 @@ class DuetWebAPI:
         try:
             # check if its a Duet 2 board
             # Attempt to connect using rr_status interface
+            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
             URL=(f'{self._base_url}'+'/rr_status?type=2')
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
             j = json.loads(r.text)
@@ -282,6 +287,10 @@ class DuetWebAPI:
         _logger.debug('Called getCurrentTool')
         try:
             if (self.pt == 2):
+                # Start a connection
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
                 # Wait for machine to be in idle state
                 while self.getStatus() not in "idle":
                     _logger.debug('Machine not idle, sleeping 0.5 seconds.')
@@ -347,6 +356,10 @@ class DuetWebAPI:
                 _logger.debug('Tool offset for T' + str(toolIndex) +': ' + str(ret))
                 return(ret)
             elif (self.pt == 2):
+                # Start a connection
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
                 URL=(f'{self._base_url}'+'/rr_status?type=2')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -392,6 +405,10 @@ class DuetWebAPI:
         _logger.debug('Called getStatus')
         try:
             if (self.pt == 2):
+                # Start a connection
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
                 URL=(f'{self._base_url}'+'/rr_status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -446,6 +463,10 @@ class DuetWebAPI:
         _logger.debug('Called getCoordinates')
         try:
             if (self.pt == 2):
+                # Start a connection
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
                 # poll machine for coordinates
                 while self.getStatus() not in "idle":
                     _logger.debug('Sleeping 0.5s until printer is idle.')
@@ -561,6 +582,11 @@ class DuetWebAPI:
         try:
             if (self.pt == 2):
                 # Duet RRF v2
+
+                # Start a connection
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
                 URL=(f'{self._base_url}'+'/rr_status?type=2')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -853,10 +879,11 @@ class DuetWebAPI:
     def getJSON( self ):
         printerJSON = { 
             'address': self._base_url,
+            'password': self._password,
             'name': self._name,
             'nickname': self._nickname,
             'controller': self._firmwareName,
-            'firmware': self._firmwareVersion,
+            'version': self._firmwareVersion,
             'tools': []
             }
         for i, currentTool in enumerate(self._tools):
@@ -875,6 +902,10 @@ class DuetWebAPI:
     def gCode(self,command):
         _logger.debug('gCode called')
         if (self.pt == 2):
+            # Start a connection
+            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
             URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
             r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
             
@@ -894,9 +925,9 @@ class DuetWebAPI:
     
     def gCodeBatch(self,commands):
         if( self.pt == 2 ): 
-            # Start session to speed things up
-            replyURL = (f'{self._base_url}'+'/rr_connect')
-            r = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+            # Start a connection
+            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
             
         for command in commands:
             if (self.pt == 2):
@@ -925,14 +956,24 @@ class DuetWebAPI:
 
     def getFilenamed(self,filename):
         if (self.pt == 2):
+            # Start a connection
+            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+        
             URL=(f'{self._base_url}'+'/rr_download?name='+filename)
+
         if (self.pt == 3):
             URL=(f'{self._base_url}'+'/machine/file/'+filename)
+        
         r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
         return(r.text.splitlines()) # replace('\n',str(chr(0x0a))).replace('\t','    '))
         
     def checkDuet2RRF3(self):
         if (self.pt == 2):
+            # Start a connection
+            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+
             URL=(f'{self._base_url}'+'/rr_status?type=2')
             r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
             j = json.loads(r.text)
@@ -1003,7 +1044,7 @@ class DuetWebAPI:
         if (self.pt == 2):
             if not self._rrf2:
                 #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
-                sessionURL = (f'{self._base_url}'+'/rr_connect?password=reprap')
+                sessionURL = ( f'{self._base_url}'+'/rr_connect?password=' + self._password )
                 r = self.session.get(sessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
                 rawdata = r.json()
                 rawdata = json.dumps(rawdata)

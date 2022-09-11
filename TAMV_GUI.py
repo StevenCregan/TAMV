@@ -554,6 +554,17 @@ class SettingsDialog(QDialog):
         adbox.addWidget(self.printerAddress_label)
         adbox.addWidget(self.printerAddress)
         
+        # Printer password
+        if( newPrinter is False ):
+            self.printerPassword = QLineEdit( self.default_printer['password'] )
+        else:
+            self.printerPassword = QLineEdit()
+        self.printerPassword.setPlaceholderText('Password')
+        self.printerPassword.setToolTip('(optional): password used to connect to printer')
+        self.printerPassword_label = QLabel('Password: ')
+        adbox.addWidget( self.printerPassword_label )
+        adbox.addWidget( self.printerPassword )
+
         # Printer controller
         self.controllerName = QComboBox()
         self.controllerName.setToolTip( 'Machine firmware family/category')
@@ -614,6 +625,7 @@ class SettingsDialog(QDialog):
             # handle selecting a new machine from the dropdown
             self.printer_combo.activated.connect(self.refreshPrinters)
             self.printerAddress.editingFinished.connect(self.updateAttributes)
+            self.printerPassword.editingFinished.connect(self.updateAttributes)
             self.printerName.editingFinished.connect(self.updateAttributes)
             self.printerNickname.editingFinished.connect(self.updateAttributes)
             self.controllerName.activated.connect(self.updateAttributes)
@@ -637,7 +649,8 @@ class SettingsDialog(QDialog):
     def addProfile(self):
         # Create a new printer profile object
         newPrinter = { 
-            'address': '', 
+            'address': '',
+            'password': 'repap',
             'name': '',
             'nickname': 'New printer..',
             'controller' : 'RRF/Duet', 
@@ -656,6 +669,7 @@ class SettingsDialog(QDialog):
         # enable all text fields
         self.printerDefault.setDisabled(False)
         self.printerAddress.setDisabled(False)
+        self.printerPassword.setDisabled(False)
         self.printerNickname.setDisabled(False)
         self.controllerName.setDisabled(False)
         self.delete_printer_button.setDisabled(False)
@@ -682,6 +696,7 @@ class SettingsDialog(QDialog):
             # no more profiles found, display empty fields
             self.printerDefault.setChecked(False)
             self.printerAddress.setText('')
+            self.printerPassword.setText('')
             self.printerName.setText('')
             self.printerNickname.setText('')
             self.controllerName.setCurrentIndex(0)
@@ -689,6 +704,7 @@ class SettingsDialog(QDialog):
             # disable all fields
             self.printerDefault.setDisabled(True)
             self.printerAddress.setDisabled(True)
+            self.printerPassword.setDisabled(True)
             self.printerName.setDisabled(True)
             self.printerNickname.setDisabled(True)
             self.controllerName.setDisabled(True)
@@ -705,6 +721,10 @@ class SettingsDialog(QDialog):
                 self.printerAddress.setText(self.settingsObject['printer'][index]['address'])
             else:
                 self.printerAddress.clear()
+            if( len(self.settingsObject['printer'][index]['password']) > 0 ):
+                self.printerPassword.setText(self.settingsObject['printer'][index]['password'])
+            else:
+                self.printerPassword.clear()
             if( len(self.settingsObject['printer'][index]['name']) > 0):
                 self.printerName.setText(self.settingsObject['printer'][index]['name'])
             else:
@@ -730,6 +750,7 @@ class SettingsDialog(QDialog):
         index = self.printer_combo.currentIndex()
         if( index > -1 ):
             self.settingsObject['printer'][index]['address'] = self.printerAddress.text()
+            self.settingsObject['printer'][index]['password'] = self.printerPassword.text()
             self.settingsObject['printer'][index]['name'] = self.printerName.text()
             self.settingsObject['printer'][index]['nickname'] = self.printerNickname.text()
             self.settingsObject['printer'][index]['controller'] = self.controllerName.itemText(self.controllerName.currentIndex())
@@ -853,7 +874,8 @@ class SettingsDialog(QDialog):
             #HBHBHBHB
             self.settingsObject['printer'] = [
                 { 
-                'address': 'http://localhost', 
+                'address': 'http://localhost',
+                'password': 'reprap',
                 'name': '',
                 'nickname': 'Default profile',
                 'controller' : 'RRF/Duet', 
@@ -875,7 +897,8 @@ class SettingsDialog(QDialog):
     def saveNewPrinter( self ):
         _logger.info('Saving printer information..')
         newPrinter = { 
-                'address': self.printerAddress.text(), 
+                'address': self.printerAddress.text(),
+                'password': self.printerPassword.text(),
                 'name': '',
                 'nickname': self.printerNickname.text(),
                 'controller' : str(self.controllerName.currentText()), 
@@ -2588,6 +2611,11 @@ class App(QMainWindow):
                         defaultPrinterDefined = True
                     else:
                         machine['default'] = 0
+                # Check if password doesn't exist
+                try:
+                    temp = machine['password']
+                except KeyError:
+                    machine['password'] = 'reprap'
                 # Check if nickname doesn't exist
                 try:
                     temp = machine['nickname']
@@ -2631,7 +2659,8 @@ class App(QMainWindow):
             # Create a printer array
             self.options['printer'] = [
                 { 
-                'address': 'http://localhost', 
+                'address': 'http://localhost',
+                'password': 'reprap',
                 'name': 'My Duet',
                 'nickname': 'Default',
                 'controller' : 'RRF/Duet', 
