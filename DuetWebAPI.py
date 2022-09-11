@@ -135,7 +135,7 @@ class DuetWebAPI:
         self.session.mount( 'http://', self.adapter )
         try:
             # check if its a Duet 2 board
-            # Attempt to connect using rr_status interface
+            # Set up session using password
             URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
@@ -179,6 +179,14 @@ class DuetWebAPI:
                 # We're probably dealing with a Duet 3 controller, get required firmware info
                 try:
                     _logger.debug('Trying to connect to Duet 3 board..')
+                    # Set up session using password
+                    URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                    # Get session key
+                    r_obj = json.loads(r.text)
+                    self._sessionKey = r_obj['sessionKey']
+                    self.session.headers = {'X-Session-Key': self._sessionKey }
+
                     URL=(f'{self._base_url}'+'/machine/status')
                     r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                     _logger.debug('Got reply, parsing again..' )
@@ -308,6 +316,14 @@ class DuetWebAPI:
                 _logger.debug('Found current tool: ' + str(ret))
                 return(ret)
             elif (self.pt == 3):
+                # Set up session using password
+                URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Get session key
+                r_obj = json.loads(r.text)
+                self._sessionKey = r_obj['sessionKey']
+                self.session.headers = {'X-Session-Key': self._sessionKey }
+
                 URL=(f'{self._base_url}'+'/machine/status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -343,6 +359,14 @@ class DuetWebAPI:
         _logger.debug('Called getToolOffset')
         try:
             if (self.pt == 3):
+                # Set up session using password
+                URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Get session key
+                r_obj = json.loads(r.text)
+                self._sessionKey = r_obj['sessionKey']
+                self.session.headers = {'X-Session-Key': self._sessionKey }
+
                 URL=(f'{self._base_url}'+'/machine/status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -414,6 +438,14 @@ class DuetWebAPI:
                 j = json.loads(r.text)
                 _status=j['status']
             elif (self.pt == 3):
+                # Set up session using password
+                URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Get session key
+                r_obj = json.loads(r.text)
+                self._sessionKey = r_obj['sessionKey']
+                self.session.headers = {'X-Session-Key': self._sessionKey }
+
                 URL=(f'{self._base_url}'+'/machine/status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -492,6 +524,14 @@ class DuetWebAPI:
                 while self.getStatus() not in "idle":
                     _logger.debug('XX - printer not idle _SLEEPING_')
                     time.sleep(0.5)
+                # Set up session using password
+                URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Get session key
+                r_obj = json.loads(r.text)
+                self._sessionKey = r_obj['sessionKey']
+                self.session.headers = {'X-Session-Key': self._sessionKey }
+
                 URL=(f'{self._base_url}'+'/machine/status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 if not r.ok:
@@ -602,6 +642,15 @@ class DuetWebAPI:
 
             elif (self.pt == 3):
                 # Duet RRF v3
+
+                # Set up session using password
+                URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                # Get session key
+                r_obj = json.loads(r.text)
+                self._sessionKey = r_obj['sessionKey']
+                self.session.headers = {'X-Session-Key': self._sessionKey }
+
                 URL=(f'{self._base_url}'+'/machine/status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
                 j = json.loads(r.text)
@@ -912,8 +961,15 @@ class DuetWebAPI:
             # Send reply to clear buffer
             replyURL = (f'{self._base_url}'+'/rr_reply')
             r2 = self.session.get(replyURL, timeout=(self._requestTimeout,self._responseTimeout) )
+        elif (self.pt == 3):
+            # Set up session using password
+            URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            # Get session key
+            r_obj = json.loads(r.text)
+            self._sessionKey = r_obj['sessionKey']
+            self.session.headers = {'X-Session-Key': self._sessionKey }
 
-        if (self.pt == 3):
             URL=(f'{self._base_url}'+'/machine/code/')
             r = self.requests.post(URL, data=command)
         if (r.ok):
@@ -928,7 +984,15 @@ class DuetWebAPI:
             # Start a connection
             URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
-            
+        else:
+            # Set up session using password
+            URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            # Get session key
+            r_obj = json.loads(r.text)
+            self._sessionKey = r_obj['sessionKey']
+            self.session.headers = {'X-Session-Key': self._sessionKey }
+        
         for command in commands:
             if (self.pt == 2):
                 URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
@@ -963,6 +1027,14 @@ class DuetWebAPI:
             URL=(f'{self._base_url}'+'/rr_download?name='+filename)
 
         if (self.pt == 3):
+            # Set up session using password
+            URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            # Get session key
+            r_obj = json.loads(r.text)
+            self._sessionKey = r_obj['sessionKey']
+            self.session.headers = {'X-Session-Key': self._sessionKey }
+
             URL=(f'{self._base_url}'+'/machine/file/'+filename)
         
         r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -1075,6 +1147,14 @@ class DuetWebAPI:
                 endsessionURL = (f'{self._base_url}'+'/rr_disconnect')
                 r2 = self.session.get(endsessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
         if (self.pt == 3):
+            # Set up session using password
+            URL=(f'{self._base_url}'+'/machine/connect?password=' + self._password )
+            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            # Get session key
+            r_obj = json.loads(r.text)
+            self._sessionKey = r_obj['sessionKey']
+            self.session.headers = {'X-Session-Key': self._sessionKey }
+
             URL=(f'{self._base_url}'+'/machine/code/')
             r = self.requests.post(URL, data='G31')
             # Reply is of the format:
