@@ -15,7 +15,7 @@
 
 # Imports
 import pstats
-from tkinter.tix import Tree
+# from tkinter.tix import Tree
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -72,9 +72,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as patches
 from matplotlib.ticker import FormatStrFormatter
-
-# Custom exception classes import
-import customExceptions
 
 #logging import
 import logging

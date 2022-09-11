@@ -13,7 +13,7 @@
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
 #
 # Requires Python3
-from csv import excel_tab
+# from csv import excel_tab
 from http.client import HTTPConnection
 import logging
 import requests
@@ -24,8 +24,7 @@ import json
 import sys
 import time
 import datetime
-# import custom exception classes
-import customExceptions
+
 # invoke parent (TAMV) _logger
 _logger = logging.getLogger('TAMV.DuetWebAPI')
 # # enable HTTP requests logging
