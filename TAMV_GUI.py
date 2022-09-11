@@ -65,6 +65,7 @@ import datetime
 import json
 import time
 import copy
+import argparse
 
 # graphing imports
 import matplotlib
@@ -3725,7 +3726,16 @@ class App(QMainWindow):
 ##############################################################################################################################################################
 # Main program
 if __name__=='__main__':
+    # Setup dependency debugging levels
     os.putenv("QT_LOGGING_RULES","qt5ct.debug=false")
+    matplotlib.use('Qt5Agg',force=True)
+
+    # Setup CLI argument parsers
+    parser = argparse.ArgumentParser(description='Program to allign multiple tools on Duet/klipper based printers, using machine vision.', allow_abbrev=False)
+    parser.add_argument('-d','--debug',action='store_true',help='Enable debug output to terminal')
+    # Execute argument parser
+    args=vars(parser.parse_args())
+    
     # Create main application _logger
     _logger = logging.getLogger("TAMV")
     _logger.setLevel(logging.DEBUG)
@@ -3734,7 +3744,10 @@ if __name__=='__main__':
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level than the file _logger
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    if( args['debug'] ):
+        ch.setLevel(logging.DEBUG)
+    else:
+        ch.setLevel(logging.INFO)
     # create a formatter and add it to the handlers
     file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
     #console_formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s',datefmt=dateformat)
