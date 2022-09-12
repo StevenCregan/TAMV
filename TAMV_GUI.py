@@ -2880,7 +2880,7 @@ class App(QMainWindow):
         # Wait for printer to stop moving and unload tools
         _ret_error = 0
         printerDisconnected = False
-        while( not printerDisconnected ):
+        while( not printerDisconnected and self.printer is not None ):
             if self.printer.isIdle() is True:
                 self.printer.flushMovementBuffer()
                 tempCoords = self.printer.getCoordinates()
