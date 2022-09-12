@@ -1823,9 +1823,9 @@ class CalibrateNozzles(QThread):
 
 ##############################################################################################################################################################
 ##############################################################################################################################################################
-##### GUI application class
+## GUI application class
 class App(QMainWindow):
-    ##### - Class attributes
+### Class attributes
     cp_coords = {}
     numTools = 0
     current_frame = np.ndarray
@@ -1843,29 +1843,47 @@ class App(QMainWindow):
     # main printer class
     printer = None
 
-    ##### - Initialize class
+
+### Initialize class
     def __init__(self, parent=None):
         # output greeting to log
         _logger.info( 'Launching application.. ' )
         super().__init__()
-        
-        ##### -- setup class attributes
+### #  setup class attributes
         self.standbyImage = QPixmap('./standby.jpg')
         self.printer = None
-        
-        ##### -- setup window properties
+### #  setup window properties
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
         self.setWindowIcon(QIcon( 'jubilee.png' ))
-        
-        ##### -- handle screen mode based on resolution
-        if( True ):
-            global display_width, display_height
-            screen = QDesktopWidget().availableGeometry()
-            self.small_display = False
-            # HANDLE DIFFERENT DISPLAY SIZES
-            # 800x600 display - fullscreen app
-            if int(screen.width()) >= 800 and int(screen.height()) >= 550 and int(screen.height() < 600):
+### #  handle screen mode based on resolution
+        global display_width, display_height
+        screen = QDesktopWidget().availableGeometry()
+        self.small_display = False
+        # HANDLE DIFFERENT DISPLAY SIZES
+        # 800x600 display - fullscreen app
+        if int(screen.width()) >= 800 and int(screen.height()) >= 550 and int(screen.height() < 600):
+            self.small_display = True
+            _logger.info( '800x600 desktop detected' )
+            display_width = 512
+            display_height = 384
+            self.setWindowFlag(Qt.FramelessWindowHint)
+            self.showFullScreen()
+            self.setGeometry(0,0,700,500)
+            app_screen = self.frameGeometry()
+        # 848x480 display - fullscreen app
+        elif int(screen.width()) >= 800 and int(screen.height()) < 550:
+            self.small_display = True
+            _logger.info( '848x480 desktop detected' )
+            display_width = 448
+            display_height = 336
+            self.setWindowFlag(Qt.FramelessWindowHint)
+            self.showFullScreen()
+            self.setGeometry(0,0,700,400)
+            app_screen = self.frameGeometry()
+        # larger displays - normal window
+        else:
+            if debugging_small_display:
                 self.small_display = True
                 _logger.info( '800x600 desktop detected' )
                 display_width = 512
@@ -1874,345 +1892,15 @@ class App(QMainWindow):
                 self.showFullScreen()
                 self.setGeometry(0,0,700,500)
                 app_screen = self.frameGeometry()
-            # 848x480 display - fullscreen app
-            elif int(screen.width()) >= 800 and int(screen.height()) < 550:
-                self.small_display = True
-                _logger.info( '848x480 desktop detected' )
-                display_width = 448
-                display_height = 336
-                self.setWindowFlag(Qt.FramelessWindowHint)
-                self.showFullScreen()
-                self.setGeometry(0,0,700,400)
-                app_screen = self.frameGeometry()
-            # larger displays - normal window
             else:
-                if debugging_small_display:
-                    self.small_display = True
-                    _logger.info( '800x600 desktop detected' )
-                    display_width = 512
-                    display_height = 384
-                    self.setWindowFlag(Qt.FramelessWindowHint)
-                    self.showFullScreen()
-                    self.setGeometry(0,0,700,500)
-                    app_screen = self.frameGeometry()
-                else:
-                    self.small_display = False
-                    display_width = 640
-                    display_height = 480
-                    self.setGeometry(QStyle.alignedRect(Qt.LeftToRight,Qt.AlignHCenter,QSize(800,600),screen))
-                    app_screen = self.frameGeometry()
-                    app_screen.moveCenter(screen.center())
-                    self.move(app_screen.topLeft())
-        
-        ##### -- create stylehseets
-        self.createStyles()
-
-        ##### -- load user parameters
-        self.loadUserParameters()
-
-        ##### -- create GUI elements
-        ##### --- Menubar
-        if not self.small_display:
-            self._createActions()
-            self._createMenuBar()
-            self._connectActions()
-        self.centralWidget = QWidget()
-        self.setCentralWidget(self.centralWidget)
-        
-        ##### ---- Statusbar
-        self.statusBar = QStatusBar()
-        self.statusBar.showMessage( 'Loading up video feed and libraries..',5000)
-        self.setStatusBar( self.statusBar )
-        # CP location on statusbar
-        self.cp_label = QLabel( '<b>CP:</b> <i>undef</i>' )
-        self.statusBar.addPermanentWidget(self.cp_label)
-        self.cp_label.setStyleSheet(style_red)
-        # Connection status on statusbar
-        self.connection_status = QLabel( 'Disconnected' )
-        self.connection_status.setStyleSheet(style_red)
-        self.statusBar.addPermanentWidget(self.connection_status)
-
-        ##### ---- Main interface
-        self.createGUIElements()
-
-        ##### -- Layout GUI elements
-        # create a grid box layout
-        grid = QGridLayout()
-        grid.setSpacing(3)
-        
-        ################################################### ELEMENT POSITIONING ###################################################
-        # row, col, rowSpan, colSpan, alignment
-        ###################################################
-        # Spacers        
-        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 0, 1 )
-        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 7+2, 1 )
-        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 0 )
-        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 7+2 )
-
-        ###################################################
-        # First container
-        # connect button
-        grid.addWidget( self.connect_button,     1,  1,  1,  1,  Qt.AlignLeft )
-        # detect checkbox
-        grid.addWidget( self.detectOn_checkbox,            1,  2,  1,  1,  Qt.AlignLeft )
-        # xray checkbox
-        grid.addWidget( self.xray_checkbox,              1,  3,  1,  1,  Qt.AlignLeft )
-        # loose detection checkbox
-        grid.addWidget( self.relaxedDetection_checkbox,             1,  4,  1,  1,  Qt.AlignLeft )
-        # Alternative algorithm checkbox
-        grid.addWidget( self.altAlgorithm_checkbox,         1,  6,  1,  -1,  Qt.AlignLeft )
-        # disconnect button
-        grid.addWidget( self.disconnect_button,  1,  7,  1,  1, Qt.AlignCenter )
-        
-        ###################################################
-        # Second container
-        # main image viewer
-        grid.addWidget( self.image_label,           2,  1,  5,  6,  Qt.AlignLeft )
-        # Jog Panel
-        grid.addWidget(self.mainSidebar_panel,              2,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
-        # tool selection table
-        grid.addWidget( self.toolButtons_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
-        # instruction box
-        grid.addWidget( self.instructionsPanel_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
-        # conditional exit button
-        if self.small_display:
-            grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
-        # debug window button
-        grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
-        
-        ###################################################
-        # Third container
-        # set control point button
-        grid.addWidget( self.controlPoint_button,             7,  1,  1,  1,  Qt.AlignLeft )
-        # start calibration button
-        grid.addWidget( self.calibration_button,    7,  2,  1,  1,  Qt.AlignLeft )
-        # cycle repeat label
-        grid.addWidget( self.cycles_label,          7,  3,  1,  1,  Qt.AlignLeft )
-        # cycle repeat selector
-        grid.addWidget( self.cycles_spinbox,         7,  4,  1,  1,  Qt.AlignLeft )
-        # manual alignment button
-        grid.addWidget( self.manualAlignment_button,         7,  6,  1,  1,  Qt.AlignLeft )
-        # CP auto calibration button
-        grid.addWidget( self.autoCalibrateEndstop_button, 7,  7,  1,  1,  Qt.AlignRight )
-        ################################################# END ELEMENT POSITIONING #################################################
-
-        # set the grid layout as the widgets layout
-        self.centralWidget.setLayout(grid)
-        # start video feed
-        self.startVideo()
-        # flag to draw circle
-        self.crosshair = False
-        self.crosshair_alignment = False
-        print()
-        print( '  Welcome to TAMV!' )
-        print()
-
-    def createGUIElements(self):
-        ##### ----- image_label (camera display)
-        self.image_label = OverlayLabel()
-        self.image_label.setFixedSize( display_width, display_height )
-        self.image_label.setScaledContents(True)
-        pixmap = QPixmap( display_width, display_height )
-        self.image_label.setPixmap(pixmap)
-        ##### ----- connect button
-        self.connect_button = QPushButton( 'Connect..' )
-        self.connect_button.setToolTip( 'Connect to a Duet machine..' )
-        self.connect_button.clicked.connect(self.connectToPrinter)
-        self.connect_button.setFixedWidth(170)
-        ##### ----- disconnect button
-        self.disconnect_button = QPushButton( 'STOP / DISCONNECT' )
-        self.disconnect_button.setToolTip( 'End current operation,\nunload tools, and return carriage to CP\nthen disconnect.' )
-        self.disconnect_button.clicked.connect(self.disconnectFromPrinter)
-        self.disconnect_button.setFixedWidth(170)
-        self.disconnect_button.setObjectName( 'terminate' )
-        self.disconnect_button.setDisabled(True)
-        ##### ----- controlPoint button
-        self.controlPoint_button = QPushButton( 'Set Control Point..' )
-        self.controlPoint_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
-        self.controlPoint_button.clicked.connect(self.setupCP)
-        self.controlPoint_button.setFixedWidth(170)
-        self.controlPoint_button.setDisabled(True)
-        ##### ----- calibration button
-        self.calibration_button = QPushButton( 'Start Tool Alignment' )
-        self.calibration_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
-        self.calibration_button.clicked.connect(self.runCalibration)
-        self.calibration_button.setDisabled(True)
-        self.calibration_button.setFixedWidth(170)
-        ##### ----- debugInfo button
-        self.debugInfo_button = QPushButton( 'Debug Information' )
-        self.debugInfo_button.setToolTip( 'Display current debug info for troubleshooting\nand to display final G10 commands' )
-        self.debugInfo_button.clicked.connect(self.displayDebug)
-        self.debugInfo_button.setFixedWidth(170)
-        self.debugInfo_button.setObjectName( 'debug' )
-        ##### ----- exit button
-        self.exit_button = QPushButton( 'Quit' )
-        self.exit_button.setToolTip( 'Unload tools, disconnect, and quit TAMV.' )
-        self.exit_button.clicked.connect(self.close)
-        self.exit_button.setFixedWidth(170)
-        ##### ----- autoCalibrateEndstop button
-        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture' )
-        self.autoCalibrateEndstop_button.setFixedWidth(170)
-        self.autoCalibrateEndstop_button.clicked.connect(self.calibrate_CP)
-        self.autoCalibrateEndstop_button.setDisabled(True)
-        ##### ----- manualAlignment button
-        self.manualAlignment_button = QPushButton( 'Capture' )
-        self.manualAlignment_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
-        self.manualAlignment_button.clicked.connect(self.captureOffset)
-        self.manualAlignment_button.setDisabled(True)
-        self.manualAlignment_button.setFixedWidth(170)
-        ##### ----- cycles spinbox
-        self.cycles_label = QLabel( 'Cycles: ' )
-        self.cycles_label.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
-        self.cycles_spinbox = QSpinBox()
-        self.cycles_spinbox.setValue(1)
-        self.cycles_spinbox.setMinimum(1)
-        self.cycles_spinbox.setSingleStep(1)
-        self.cycles_spinbox.setDisabled(True)
-        ##### ----- toolButtons groupbox
-        self.toolBox_boxlayout = QHBoxLayout()
-        self.toolBox_boxlayout.setSpacing(1)
-        self.toolButtons_box = QGroupBox()
-        self.toolBox_boxlayout.setContentsMargins(0,0,0,0)
-        self.toolButtons_box.setLayout(self.toolBox_boxlayout)
-        self.toolButtons_box.setVisible(False)
-        self.toolButtons = []
-        ##### ----- xray checkbox
-        self.xray_checkbox = QCheckBox( 'X-ray' )
-        self.xray_checkbox.setChecked(False)
-        self.xray_checkbox.stateChanged.connect(self.toggle_xray)
-        self.xray_checkbox.setDisabled(True)
-        self.xray_checkbox.setVisible(False)
-        ##### ----- relaxedDetection checkbox
-        self.relaxedDetection_checkbox = QCheckBox( 'Relaxed' )
-        self.relaxedDetection_checkbox.setChecked(False)
-        self.relaxedDetection_checkbox.stateChanged.connect(self.toggle_loose)
-        self.relaxedDetection_checkbox.setDisabled(True)
-        self.relaxedDetection_checkbox.setVisible(False)
-        ##### ----- altAlgorithm checkbox
-        self.altAlgorithm_checkbox = QCheckBox( 'bTriangle' )
-        self.altAlgorithm_checkbox.setChecked(False)
-        self.altAlgorithm_checkbox.stateChanged.connect(self.toggle_algorithm)
-        self.altAlgorithm_checkbox.setDisabled(True)
-        self.altAlgorithm_checkbox.setVisible(False)
-        ##### ----- detectOn checkbox
-        self.detectOn_checkbox = QCheckBox( 'Detect ON' )
-        self.detectOn_checkbox.setChecked(False)
-        self.detectOn_checkbox.stateChanged.connect(self.toggle_detect)
-        self.detectOn_checkbox.setDisabled(True)
-        ##### ----- instructionsPanel box
-        self.instructionsPanel_layout = QGridLayout()
-        self.instructionsPanel_layout.setSpacing(0)
-        self.instructionsPanel_layout.setContentsMargins(0,10,0,0)
-        self.instructionsPanel_layout.setColumnMinimumWidth(0,180)
-        self.instructionsPanel_layout.setColumnStretch(0,0)
-        self.instructionsPanel_box = QGroupBox( 'Instructions' )
-        self.instructionsPanel_box.setObjectName( 'instructionsPanel_box' )
-        self.instructionsPanel_box.setContentsMargins(0,0,0,0)
-        self.instructionsPanel_box.setLayout(self.instructionsPanel_layout)
-        self.instructions_text = QLabel( 'Welcome to TAMV.<br>Please connect to your printer.',objectName="instructions_text")
-        self.instructions_text.setContentsMargins(12,5,12,5)
-        self.instructions_text.setWordWrap(True)
-        self.instructionsPanel_layout.addWidget(self.instructions_text, 0, 0)
-
-        ##### ----- mainSidebar panel
-        self.mainSidebar_panel = QTabWidget()
-        self.mainSidebar_panel.setDisabled(True)
-        self.mainSidebar_panel.setCurrentIndex(0)
-        ##### ------ jogPanel tab
-        self.jogPanel_tab = QGroupBox( 'Jog Panel' )
-        self.jogPanel_tab.layout = QGridLayout()
-        self.buttons_layout = QGridLayout()
-        self.buttons_layout.setSpacing(1)
-        self.jogPanel_tab.setLayout(self.buttons_layout)
-        self.mainSidebar_panel.addTab( self.jogPanel_tab, "Jog Panel" )
-        ##### ------- setup button properties
-        # Set font size
-        self.panel_font = QFont()
-        self.panel_font.setPixelSize(40)
-        # set button sizing
-        self.button_width = 50
-        self.button_height = 50
-        if self.small_display:
-            self.button_height = 50
-            self.button_width = 50
-        # Increment size buttons
-        self.button_1 = QPushButton( '1' )
-        self.button_1.setFixedSize(self.button_width,self.button_height)
-        self.button_01 = QPushButton( '0.1' )
-        self.button_01.setFixedSize(self.button_width,self.button_height)
-        self.button_001 = QPushButton( '0.01' )
-        self.button_001.setFixedSize(self.button_width,self.button_height)
-        # Create increment buttons group to enable radio-button behavior
-        self.incrementButtonGroup = QButtonGroup()
-        self.incrementButtonGroup.addButton(self.button_1)
-        self.incrementButtonGroup.addButton(self.button_01)
-        self.incrementButtonGroup.addButton(self.button_001)
-        self.incrementButtonGroup.setExclusive(True)
-        self.button_1.setCheckable(True)
-        self.button_01.setCheckable(True)
-        self.button_001.setCheckable(True)
-        # default selection is the "1" button
-        self.button_1.setChecked(True)
-        # X buttons
-        self.button_x_left = QPushButton( '-', objectName='plus' )
-        self.button_x_left.setFixedSize(self.button_width,self.button_height)
-        self.button_x_right = QPushButton( '+', objectName='plus' )
-        self.button_x_right.setFixedSize(self.button_width,self.button_height)
-        # X button actions
-        self.button_x_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_left' ))
-        self.button_x_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_right' ))
-        # Y buttons
-        self.button_y_left = QPushButton( '-', objectName='plus' )
-        self.button_y_left.setFixedSize(self.button_width,self.button_height)
-        self.button_y_right = QPushButton( '+', objectName='plus' )
-        self.button_y_right.setFixedSize(self.button_width,self.button_height)
-        # Y button actions
-        self.button_y_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_left' ))
-        self.button_y_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_right' ))
-        # Z buttons
-        self.button_z_down = QPushButton( '-', objectName='plus' )
-        self.button_z_down.setFont(self.panel_font)
-        self.button_z_down.setFixedSize(self.button_width,self.button_height)
-        self.button_z_up = QPushButton( '+', objectName='plus' )
-        self.button_z_up.setFont(self.panel_font)
-        self.button_z_up.setFixedSize(self.button_width,self.button_height)
-        # Z button actions
-        self.button_z_down.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_down' ))
-        self.button_z_up.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_up' ))
-        # create on-screen labels
-        self.x_label = QLabel( 'X' )
-        self.x_label.setObjectName( 'labelPlus' )
-        self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.y_label = QLabel( 'Y' )
-        self.y_label.setObjectName( 'labelPlus' )
-        self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.z_label = QLabel( 'Z' )
-        self.z_label.setObjectName( 'labelPlus' )
-        self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        # add all labels to button panel layout
-        self.buttons_layout.addWidget(self.x_label,1,0)
-        self.buttons_layout.addWidget(self.y_label,2,0)
-        self.buttons_layout.addWidget(self.z_label,3,0)
-        # add increment buttons
-        self.buttons_layout.addWidget(self.button_001,0,0)
-        self.buttons_layout.addWidget(self.button_01,0,1)
-        self.buttons_layout.addWidget(self.button_1,0,2)
-        # add X movement buttons
-        self.buttons_layout.addWidget(self.button_x_left,1,1)
-        self.buttons_layout.addWidget(self.button_x_right,1,2)
-        # add Y movement buttons
-        self.buttons_layout.addWidget(self.button_y_left,2,1)
-        self.buttons_layout.addWidget(self.button_y_right,2,2)
-        # add Z movement buttons
-        self.buttons_layout.addWidget(self.button_z_down,3,1)
-        self.buttons_layout.addWidget(self.button_z_up,3,2)
-
-        ##### ------ toolInfo tab
-        self.toolInfo_tab =QWidget()
-        self.mainSidebar_panel.addTab( self.toolInfo_tab, "Tools")
-
-    def createStyles(self):
-        # SET UP STYLESHEETS FOR GUI ELEMENTS
+                self.small_display = False
+                display_width = 640
+                display_height = 480
+                self.setGeometry(QStyle.alignedRect(Qt.LeftToRight,Qt.AlignHCenter,QSize(800,600),screen))
+                app_screen = self.frameGeometry()
+                app_screen.moveCenter(screen.center())
+                self.move(app_screen.topLeft())
+### #  create stylehseets
         self.setStyleSheet(
             '\
             QLabel#instructions_text {\
@@ -2319,90 +2007,12 @@ class App(QMainWindow):
             }\
             '
         )
-
-    def jogPanelButtonClicked(self, buttonName):
-        # Check if machine is ready for movement
-        if( self.checkMachine() is False ):
-            # Machine is not homed, don't do anything and return
-            return
-        increment_amount = 1
-        # fetch current increment value
-        if self.button_1.isChecked():
-            increment_amount = 1
-        elif self.button_01.isChecked():
-            increment_amount = 0.1
-        elif self.button_001.isChecked():
-            increment_amount = 0.01
-        # Call corresponding axis gcode command
-        if buttonName == 'x_left':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(-1*increment_amount) )
-        elif buttonName == 'x_right':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(increment_amount) )
-        elif buttonName == 'y_left':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(-1*increment_amount) )
-        elif buttonName == 'y_right':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(increment_amount) )
-        elif buttonName == 'z_down':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(-1*increment_amount) )
-        elif buttonName == 'z_up':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(increment_amount) )
-        return
-
-    def calibrate_CP(self):
-        _logger.info( 'Starting automated CP capture..' )
-        self.video_thread.align_endstop = True
-        while self.video_thread.align_endstop and self.video_thread._running:
-            app.processEvents()
-        self.readyToCalibrate()
-
-    def toggle_detect(self):
-        self.video_thread.display_crosshair = not self.video_thread.display_crosshair
-        self.video_thread.detection_on = not self.video_thread.detection_on
-        self.crosshair_alignment = not self.crosshair_alignment
-        if self.video_thread.detection_on:
-            self.xray_checkbox.setDisabled(False)
-            self.xray_checkbox.setVisible(True)
-            self.relaxedDetection_checkbox.setDisabled(False)
-            self.relaxedDetection_checkbox.setVisible(True)
-            self.altAlgorithm_checkbox.setDisabled(False)
-            self.altAlgorithm_checkbox.setVisible(True)
-        else:
-            self.xray_checkbox.setDisabled(True)
-            self.xray_checkbox.setVisible(False)
-            self.relaxedDetection_checkbox.setDisabled(True)
-            self.relaxedDetection_checkbox.setVisible(False)
-            self.altAlgorithm_checkbox.setDisabled(True)
-            self.altAlgorithm_checkbox.setVisible(False)
-            self.updateStatusbar( 'Detection: OFF' )
-
-    def cleanPrinterURL(self, inputString='http://localhost' ):
-        _errCode = 0
-        _errMsg = ''
-        _printerURL = 'http://localhost'
-        from urllib.parse import urlparse
-        u = urlparse(inputString)
-        scheme = u[0]
-        netlocation = u[1]
-        if len(scheme) < 4 or scheme.lower() not in ['http']:
-            _errCode = 1
-            _errMsg = 'Invalid scheme. Please only use http connections.'
-        elif len(netlocation) < 1:
-            _errCode = 2
-            _errMsg = 'Invalid IP/network address.'
-        elif scheme.lower() in ['https']:
-            _errCode = 3
-            _errMsg = 'Cannot use https connections for Duet controllers'
-        else:
-            _printerURL = scheme + '://' + netlocation
-        return( _errCode, _errMsg, _printerURL )
-
-    def loadUserParameters(self):
+### #  load user parameters
         global camera_width, camera_height, video_src
         try:
             with open( 'settings.json','r' ) as inputfile:
                 self.options = json.load(inputfile)
             _logger.info( '  .. reading settings.json..' )
-
             # Fetch defined cameras
             camera_settings = self.options['camera'][0]
             defaultCameraDefined = False
@@ -2427,7 +2037,6 @@ class App(QMainWindow):
             video_src = camera_settings['video_src']
             if len(str(video_src)) == 1: 
                 video_src = int(video_src)
-
             # Fetch defined machines
             tempURL = self.options['printer'][0]['address']
             defaultPrinterDefined = False
@@ -2468,7 +2077,7 @@ class App(QMainWindow):
                     temp = machine['tools']
                 except KeyError:
                     machine['tools'] = [ { 'number': 0, 'name': 'Tool 0', 'nozzleSize': 0.4, 'offsets': [0,0,0] } ]
-            ( _errCode, _errMsg, self.printerURL ) = self.cleanPrinterURL(tempURL)
+            ( _errCode, _errMsg, self.printerURL ) = self.sanitizeURL(tempURL)
             if _errCode > 0:
                 # invalid input
                 _logger.error( 'Invalid printer URL detected in settings.json' )
@@ -2487,7 +2096,6 @@ class App(QMainWindow):
                 'display_height': '480',
                 'default': 1
             } )
-
             # Create a printer array
             self.options['printer'] = [
                 { 
@@ -2507,7 +2115,6 @@ class App(QMainWindow):
                     } ]
                 }
             ]
-
             try:
                 camera_width = 640
                 camera_height = 480
@@ -2516,165 +2123,338 @@ class App(QMainWindow):
                     json.dump(self.options, outputfile)
             except Exception as e1:
                 _logger.error( 'Error reading user settings file.' + str(e1) )
-
-    def saveUserParameters(self):
-        global video_src
-        try:
-            with open( 'settings.json','w' ) as outputfile:
-                json.dump(self.options, outputfile)
-            new_video_src = 0
-            for machine in self.options['printer']:
-                try:
-                    if( machine['default'] == 1 ):
-                        new_video_src = machine['video_src']
-                        self.video_thread.changeVideoSrc( newSrc=new_video_src )
-                        video_src = new_video_src
-                        break
-                except KeyError as ke:
-                    # No default camera defined
-                    pass
-            _logger.info( 'User preferences saved to settings.json' )
-        except Exception as e1:
-            _logger.error( 'Error saving user settings file.' + str(e1) )
-        
-        self.updateStatusbar( 'Current profile saved to settings.json' )
-
-    def _createMenuBar(self):
-        # Issue #25: fullscreen mode menu error: can't disable items
+### #  create GUI elements
+### ## Menubar
         if not self.small_display:
-            menuBar = self.menuBar()
-            # Creating menus using a QMenu object
+### ### File menu
             fileMenu = QMenu( '&File', self)
-            menuBar.addMenu(fileMenu)
+            self.menuBar.addMenu(fileMenu)
+### ### # Settings..
+            self.settingsAction = QAction(self)
+            self.settingsAction.setText( '&Settings..' )
+            self.settingsAction.triggered.connect(self.displaySettings)
             fileMenu.addAction(self.settingsAction)
+### ### # Debug info
+            self.debugAction = QAction(self)
+            self.debugAction.setText( '&Debug info' )
+            self.debugAction.triggered.connect(self.displayDebug)
             fileMenu.addAction(self.debugAction)
             fileMenu.addSeparator()
+### ### # Save current settings
+            self.saveAction = QAction(self)
+            self.saveAction.setText( 'S&ave current settings' )
+            self.saveAction.triggered.connect(self.saveUserSettings)
             fileMenu.addAction(self.saveAction)
+### ### # Quit
+            self.quitAction = QAction(self)
+            self.quitAction.setText( '&Quit' )
+            self.quitAction.triggered.connect(self.close)
             fileMenu.addSeparator()
             fileMenu.addAction(self.quitAction)
-
+### ### Analysis menu
             self.analysisMenu = QMenu( '&Analyze',self)
-            menuBar.addMenu(self.analysisMenu)
-            self.analysisMenu.addAction(self.graphAction)
-            self.analysisMenu.addAction(self.exportAction)
+            self.menuBar.addMenu(self.analysisMenu)
             self.analysisMenu.setDisabled(True)
-            return
+### ### # Graph calibration data..
+            self.graphAction = QAction(self)
+            self.graphAction.setText( '&Graph calibration data..' )
+            self.graphAction.triggered.connect(lambda: self.analyzeResults(graph=True))
+            self.analysisMenu.addAction(self.graphAction)
+### ### # Export analysis..
+            self.exportAction = QAction(self)
+            self.exportAction.setText( '&Export analysis..' )
+            self.exportAction.triggered.connect(lambda: self.analyzeResults(export=True))
+            self.analysisMenu.addAction(self.exportAction)
+        self.centralWidget = QWidget()
+        self.setCentralWidget(self.centralWidget)
+        
+### ##  Statusbar
+        self.statusBar = QStatusBar()
+        self.statusBar.showMessage( 'Loading up video feed and libraries..',5000)
+        self.setStatusBar( self.statusBar )
+        # CP location on statusbar
+        self.cp_label = QLabel( '<b>CP:</b> <i>undef</i>' )
+        self.statusBar.addPermanentWidget(self.cp_label)
+        self.cp_label.setStyleSheet(style_red)
+        # Connection status on statusbar
+        self.connection_status = QLabel( 'Disconnected' )
+        self.connection_status.setStyleSheet(style_red)
+        self.statusBar.addPermanentWidget(self.connection_status)
+### ##  Main interface
+### ### image_label (camera display)
+        self.image_label = OverlayLabel()
+        self.image_label.setFixedSize( display_width, display_height )
+        self.image_label.setScaledContents(True)
+        pixmap = QPixmap( display_width, display_height )
+        self.image_label.setPixmap(pixmap)
+### ### connect button
+        self.connect_button = QPushButton( 'Connect..' )
+        self.connect_button.setToolTip( 'Connect to a Duet machine..' )
+        self.connect_button.clicked.connect(self.connectToPrinter)
+        self.connect_button.setFixedWidth(170)
+### ### disconnect button
+        self.disconnect_button = QPushButton( 'STOP / DISCONNECT' )
+        self.disconnect_button.setToolTip( 'End current operation,\nunload tools, and return carriage to CP\nthen disconnect.' )
+        self.disconnect_button.clicked.connect(self.disconnectFromPrinter)
+        self.disconnect_button.setFixedWidth(170)
+        self.disconnect_button.setObjectName( 'terminate' )
+        self.disconnect_button.setDisabled(True)
+### ### controlPoint button
+        self.controlPoint_button = QPushButton( 'Set Control Point..' )
+        self.controlPoint_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
+        self.controlPoint_button.clicked.connect(self.setupCP)
+        self.controlPoint_button.setFixedWidth(170)
+        self.controlPoint_button.setDisabled(True)
+### ### calibration button
+        self.calibration_button = QPushButton( 'Start Tool Alignment' )
+        self.calibration_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
+        self.calibration_button.clicked.connect(self.runCalibration)
+        self.calibration_button.setDisabled(True)
+        self.calibration_button.setFixedWidth(170)
+### ### debugInfo button
+        self.debugInfo_button = QPushButton( 'Debug Information' )
+        self.debugInfo_button.setToolTip( 'Display current debug info for troubleshooting\nand to display final G10 commands' )
+        self.debugInfo_button.clicked.connect(self.displayDebug)
+        self.debugInfo_button.setFixedWidth(170)
+        self.debugInfo_button.setObjectName( 'debug' )
+### ### exit button
+        self.exit_button = QPushButton( 'Quit' )
+        self.exit_button.setToolTip( 'Unload tools, disconnect, and quit TAMV.' )
+        self.exit_button.clicked.connect(self.close)
+        self.exit_button.setFixedWidth(170)
+### ### autoCalibrateEndstop button
+        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture' )
+        self.autoCalibrateEndstop_button.setFixedWidth(170)
+        self.autoCalibrateEndstop_button.clicked.connect(self.startAutoCPCapture)
+        self.autoCalibrateEndstop_button.setDisabled(True)
+### ### manualAlignment button
+        self.manualAlignment_button = QPushButton( 'Capture' )
+        self.manualAlignment_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
+        self.manualAlignment_button.clicked.connect(self.captureOffset)
+        self.manualAlignment_button.setDisabled(True)
+        self.manualAlignment_button.setFixedWidth(170)
+### ### cycles spinbox
+        self.cycles_label = QLabel( 'Cycles: ' )
+        self.cycles_label.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
+        self.cycles_spinbox = QSpinBox()
+        self.cycles_spinbox.setValue(1)
+        self.cycles_spinbox.setMinimum(1)
+        self.cycles_spinbox.setSingleStep(1)
+        self.cycles_spinbox.setDisabled(True)
+### ### toolButtons groupbox
+        self.toolBox_boxlayout = QHBoxLayout()
+        self.toolBox_boxlayout.setSpacing(1)
+        self.toolButtons_box = QGroupBox()
+        self.toolBox_boxlayout.setContentsMargins(0,0,0,0)
+        self.toolButtons_box.setLayout(self.toolBox_boxlayout)
+        self.toolButtons_box.setVisible(False)
+        self.toolButtons = []
+### ### xray checkbox
+        self.xray_checkbox = QCheckBox( 'X-ray' )
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.stateChanged.connect(self.toggle_xray)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setVisible(False)
+### ### relaxedDetection checkbox
+        self.relaxedDetection_checkbox = QCheckBox( 'Relaxed' )
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.stateChanged.connect(self.toggle_relaxed)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setVisible(False)
+### ### altAlgorithm checkbox
+        self.altAlgorithm_checkbox = QCheckBox( 'bTriangle' )
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.stateChanged.connect(self.toggle_algorithm)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setVisible(False)
+### ### detectOn checkbox
+        self.detectOn_checkbox = QCheckBox( 'Detect ON' )
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.stateChanged.connect(self.toggle_detection)
+        self.detectOn_checkbox.setDisabled(True)
+### ### instructionsPanel box
+        self.instructionsPanel_layout = QGridLayout()
+        self.instructionsPanel_layout.setSpacing(0)
+        self.instructionsPanel_layout.setContentsMargins(0,10,0,0)
+        self.instructionsPanel_layout.setColumnMinimumWidth(0,180)
+        self.instructionsPanel_layout.setColumnStretch(0,0)
+        self.instructionsPanel_box = QGroupBox( 'Instructions' )
+        self.instructionsPanel_box.setObjectName( 'instructionsPanel_box' )
+        self.instructionsPanel_box.setContentsMargins(0,0,0,0)
+        self.instructionsPanel_box.setLayout(self.instructionsPanel_layout)
+        self.instructions_text = QLabel( 'Welcome to TAMV.<br>Please connect to your printer.',objectName="instructions_text")
+        self.instructions_text.setContentsMargins(12,5,12,5)
+        self.instructions_text.setWordWrap(True)
+        self.instructionsPanel_layout.addWidget(self.instructions_text, 0, 0)
+### ### mainSidebar panel
+        self.mainSidebar_panel = QTabWidget()
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
+### ### # jogPanel tab
+        self.jogPanel_tab = QGroupBox( 'Jog Panel' )
+        self.jogPanel_tab.layout = QGridLayout()
+        self.buttons_layout = QGridLayout()
+        self.buttons_layout.setSpacing(1)
+        self.jogPanel_tab.setLayout(self.buttons_layout)
+        self.mainSidebar_panel.addTab( self.jogPanel_tab, "Jog Panel" )
+### ### ## setup button properties
+        # Set font size
+        self.panel_font = QFont()
+        self.panel_font.setPixelSize(40)
+        # set button sizing
+        self.button_width = 50
+        self.button_height = 50
+        if self.small_display:
+            self.button_height = 50
+            self.button_width = 50
+### ### ## create jogPanel buttons
+### ### ### increment size
+        self.button_1 = QPushButton( '1' )
+        self.button_1.setFixedSize(self.button_width,self.button_height)
+        self.button_01 = QPushButton( '0.1' )
+        self.button_01.setFixedSize(self.button_width,self.button_height)
+        self.button_001 = QPushButton( '0.01' )
+        self.button_001.setFixedSize(self.button_width,self.button_height)
+        self.incrementButtonGroup = QButtonGroup()
+        self.incrementButtonGroup.addButton(self.button_1)
+        self.incrementButtonGroup.addButton(self.button_01)
+        self.incrementButtonGroup.addButton(self.button_001)
+        self.incrementButtonGroup.setExclusive(True)
+        self.button_1.setCheckable(True)
+        self.button_01.setCheckable(True)
+        self.button_001.setCheckable(True)
+        self.button_1.setChecked(True)
+### ### ### X movement
+        self.button_x_left = QPushButton( '-', objectName='plus' )
+        self.button_x_left.setFixedSize(self.button_width,self.button_height)
+        self.button_x_right = QPushButton( '+', objectName='plus' )
+        self.button_x_right.setFixedSize(self.button_width,self.button_height)
+        self.button_x_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_left' ))
+        self.button_x_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_right' ))
+        self.x_label = QLabel( 'X' )
+        self.x_label.setObjectName( 'labelPlus' )
+        self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
+### ### ### Y movement
+        self.button_y_left = QPushButton( '-', objectName='plus' )
+        self.button_y_left.setFixedSize(self.button_width,self.button_height)
+        self.button_y_right = QPushButton( '+', objectName='plus' )
+        self.button_y_right.setFixedSize(self.button_width,self.button_height)
+        self.button_y_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_left' ))
+        self.button_y_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_right' ))
+        self.y_label = QLabel( 'Y' )
+        self.y_label.setObjectName( 'labelPlus' )
+        self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
+### ### ### Z movement
+        self.button_z_down = QPushButton( '-', objectName='plus' )
+        self.button_z_down.setFont(self.panel_font)
+        self.button_z_down.setFixedSize(self.button_width,self.button_height)
+        self.button_z_up = QPushButton( '+', objectName='plus' )
+        self.button_z_up.setFont(self.panel_font)
+        self.button_z_up.setFixedSize(self.button_width,self.button_height)
+        self.button_z_down.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'z_down' ))
+        self.button_z_up.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'z_up' ))
+        self.z_label = QLabel( 'Z' )
+        self.z_label.setObjectName( 'labelPlus' )
+        self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter) 
+### ### ## layout jogPanel buttons
+        self.buttons_layout.addWidget(self.x_label,1,0)
+        self.buttons_layout.addWidget(self.y_label,2,0)
+        self.buttons_layout.addWidget(self.z_label,3,0)
+        # add increment buttons
+        self.buttons_layout.addWidget(self.button_001,0,0)
+        self.buttons_layout.addWidget(self.button_01,0,1)
+        self.buttons_layout.addWidget(self.button_1,0,2)
+        # add X movement buttons
+        self.buttons_layout.addWidget(self.button_x_left,1,1)
+        self.buttons_layout.addWidget(self.button_x_right,1,2)
+        # add Y movement buttons
+        self.buttons_layout.addWidget(self.button_y_left,2,1)
+        self.buttons_layout.addWidget(self.button_y_right,2,2)
+        # add Z movement buttons
+        self.buttons_layout.addWidget(self.button_z_down,3,1)
+        self.buttons_layout.addWidget(self.button_z_up,3,2)
+### ### # toolInfo tab
+        self.toolInfo_tab =QWidget()
+        self.mainSidebar_panel.addTab( self.toolInfo_tab, "Tools")
 
-    def _createActions(self):
-        # Creating action using the first constructor
-        self.settingsAction = QAction(self)
-        self.settingsAction.setText( '&Settings..' )
-        self.debugAction = QAction(self)
-        self.debugAction.setText( '&Debug info' )
-        self.quitAction = QAction(self)
-        self.quitAction.setText( '&Quit' )
-        self.saveAction = QAction(self)
-        self.saveAction.setText( 'S&ave current settings' )
-        self.graphAction = QAction(self)
-        self.graphAction.setText( '&Graph calibration data..' )
-        self.exportAction = QAction(self)
-        self.exportAction.setText( '&Export to output.json' )
+### # Layout GUI elements
+        # create a grid box layout
+        grid = QGridLayout()
+        grid.setSpacing(3)
+        
+        ################################################### ELEMENT POSITIONING ###################################################
+        # row, col, rowSpan, colSpan, alignment
+        ###################################################
+        # Spacers        
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 0, 1 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 7+2, 1 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 0 )
+        grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 7+2 )
 
-    def _connectActions(self):
-        # Connect File actions
-        self.debugAction.triggered.connect(self.displayDebug)
-        self.settingsAction.triggered.connect(self.displaySettings)
-        self.quitAction.triggered.connect(self.close)
-        self.saveAction.triggered.connect(self.saveUserParameters)
+        ###################################################
+        # First container
+        # connect button
+        grid.addWidget( self.connect_button,     1,  1,  1,  1,  Qt.AlignLeft )
+        # detect checkbox
+        grid.addWidget( self.detectOn_checkbox,            1,  2,  1,  1,  Qt.AlignLeft )
+        # xray checkbox
+        grid.addWidget( self.xray_checkbox,              1,  3,  1,  1,  Qt.AlignLeft )
+        # loose detection checkbox
+        grid.addWidget( self.relaxedDetection_checkbox,             1,  4,  1,  1,  Qt.AlignLeft )
+        # Alternative algorithm checkbox
+        grid.addWidget( self.altAlgorithm_checkbox,         1,  6,  1,  -1,  Qt.AlignLeft )
+        # disconnect button
+        grid.addWidget( self.disconnect_button,  1,  7,  1,  1, Qt.AlignCenter )
+        
+        ###################################################
+        # Second container
+        # main image viewer
+        grid.addWidget( self.image_label,           2,  1,  5,  6,  Qt.AlignLeft )
+        # Jog Panel
+        grid.addWidget(self.mainSidebar_panel,              2,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        # tool selection table
+        grid.addWidget( self.toolButtons_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        # instruction box
+        grid.addWidget( self.instructionsPanel_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        # conditional exit button
+        if self.small_display:
+            grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+        # debug window button
+        grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+        
+        ###################################################
+        # Third container
+        # set control point button
+        grid.addWidget( self.controlPoint_button,             7,  1,  1,  1,  Qt.AlignLeft )
+        # start calibration button
+        grid.addWidget( self.calibration_button,    7,  2,  1,  1,  Qt.AlignLeft )
+        # cycle repeat label
+        grid.addWidget( self.cycles_label,          7,  3,  1,  1,  Qt.AlignLeft )
+        # cycle repeat selector
+        grid.addWidget( self.cycles_spinbox,         7,  4,  1,  1,  Qt.AlignLeft )
+        # manual alignment button
+        grid.addWidget( self.manualAlignment_button,         7,  6,  1,  1,  Qt.AlignLeft )
+        # CP auto calibration button
+        grid.addWidget( self.autoCalibrateEndstop_button, 7,  7,  1,  1,  Qt.AlignRight )
+        ################################################# END ELEMENT POSITIONING #################################################
 
-        self.graphAction.triggered.connect(lambda: self.analyzeResults(graph=True))
-        self.exportAction.triggered.connect(lambda: self.analyzeResults(export=True))
-
-    def displaySettings(self):
-        self.settings_dialog = SettingsDialog(parent=self, addPrinter=False)
-        self.settings_dialog.update_settings.connect( self.updateSettings )
-        self.settings_dialog.exec()
-
-    def displayDebug(self):
-        dbg = DebugDialog(parent=self,message=self.debugString)
-        if dbg.exec_():
-            None
-
-    # Manual offset capture
-    def captureOffset(self):
-        # Check if performing CP setup
-        if self.flag_CP_setup:
-            try:
-                self.captureControlPoint()
-            except Exception:
-                _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
-                self.statusBar.showMessage( 'Error 1 in manual capture. Check logs.' )
-                return
-        else:
-            # tool capture
-            try:
-                _logger.debug( 'Manual offset calculation starting..' )
-                currentPosition = self.printer.getCoordinates()
-                curr_x = currentPosition['X']
-                curr_y = currentPosition['Y']
-                # Get active tool
-                _active = int(self.printer.getCurrentTool())
-                #get tool offsets
-                self.tool_offsets = self.printer.getToolOffset(_active)
-                # calculate X and Y coordinates
-                final_x = np.around( (self.cp_coords['X'] + self.tool_offsets['X']) - curr_x, 3 )
-                final_y = np.around( (self.cp_coords['Y'] + self.tool_offsets['Y']) - curr_y, 3 )
-                offsetString  = 'Tool ' + str(_active) + ' offsets:  X' + str(final_x) + ' Y' + str(final_y)
-                _logger.info(offsetString)
-                self.printer.setToolOffsets(tool=str(_active), X=str(final_x), Y=str(final_y) )
-            except Exception:
-                self.statusBar.showMessage( 'Error 2 in manual capture. Check logs.' )
-                _logger.error( 'Capture Offset error 2: \n' + traceback.format_exc() )
-            _logger.debug( 'Manual offset calculation ending..' )
-            self.toolButtons[_active].setObjectName( 'completed' )
-            self.toolButtons[_active].setStyle(self.toolButtons[_active].style())
+        # set the grid layout as the widgets layout
+        self.centralWidget.setLayout(grid)
+        
+### # Start video thread
+        self.startVideo()
+        # flag to draw circle
+        self.crosshair = False
         self.crosshair_alignment = False
-        return
 
-    def startVideo(self):
-        _logger.info( '  .. starting video feed.. ' )
-        # create the video capture thread
-        self.video_thread = CalibrateNozzles(parentTh=self,numTools=0, cycles=1, align=False)
-        # connect its signal to the update_image slot
-        self.video_thread.detection_error.connect(self.updateStatusbar)
-        self.video_thread.status_update.connect(self.updateStatusbar)
-        self.video_thread.message_update.connect(self.updateMessagebar)
-        self.video_thread.change_pixmap_signal.connect(self.update_image)
-        self.video_thread.calibration_complete.connect(self.applyCalibration)
-        self.video_thread.result_update.connect(self.addCalibrationResult)
-        self.video_thread.crosshair_display.connect(self.updateCrosshairDisplay)
-        self.video_thread.update_cpLabel.connect(self.update_cpLabel)
-
-        # start the thread
-        self.video_thread.start()
-
-    def stopVideo(self):
-        _logger.info( ' .. stopping video feed..' )
-        try:
-            if self.video_thread.isRunning():
-                self.video_thread.stop()
-        except Exception as vs2:
-            self.updateStatusbar( 'Error 0x03: cannot stop video.' )
-            _logger.error( 'Cannot stop video capture: ' + str(vs2) )
-            _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
-
-    def closeEvent(self, event):
-        try:
-            if( self.printer is not None ):
-                self.disconnectFromPrinter()
-        except Exception:
-            _logger.critical( 'Close event error: \n' + traceback.format_exc() )
-        _logger.debug( 'Terminating video thread..' )
-        self.video_thread.terminate()
-        _logger.debug( 'Waiting for video thread to exit..' )
-        self.video_thread.wait()
-        _logger.debug( 'TAMV exiting..' )
+### # Output welcome message
         print()
-        print( 'Thank you for using TAMV!' )
-        print( 'Check out www.jubilee3d.com' )
-        event.accept()
-        sys.exit(0)
+        print( '  Welcome to TAMV!' )
+        print()
 
+
+### main action functions
+### # connect to printer
     def connectToPrinter(self):
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Waiting to connect..' )
@@ -2728,12 +2508,12 @@ class App(QMainWindow):
 
         # Handle clicking OK/Connect
         if ok and text != '' and len(text) > 5:
-            ( _errCode, _errMsg, tempURL ) = self.cleanPrinterURL(text)
+            ( _errCode, _errMsg, tempURL ) = self.sanitizeURL(text)
             while _errCode != 0:
                 # Invalid URL detected, pop-up window to correct this
                 text, ok = QInputDialog.getText(self, 'Machine URL', _errMsg + '\nMachine IP address or hostname: ', QLineEdit.Normal, text)
                 if ok:
-                    ( _errCode, _errMsg, tempURL ) = self.cleanPrinterURL(text)
+                    ( _errCode, _errMsg, tempURL ) = self.sanitizeURL(text)
                 else:
                     self.updateStatusbar( 'Connection request cancelled.' )
                     self.resetConnectInterface()
@@ -2830,184 +2610,34 @@ class App(QMainWindow):
         # Update instructions box
         self.instructions_text.setText("Place endstop near center of preview window, and set your control point.")
         _logger.info( '  .. connection successful!' )
-
-    def callTool(self):
-        # Check if machine is ready for movement
-        if( self.checkMachine() is False ):
-            # Machine is not homed, don't do anything and return
-            return
-        self.manualAlignment_button.setDisabled(False)
-        # handle scenario where machine is busy and user tries to select a tool.
-        if not self.printer.isIdle():
-            self.updateStatusbar( 'Machine is not idle, cannot select tool.' )
-            return
-        # check if machine is homed or not
-        if( self.printer.isHomed() is False ):
-            self.updateStatusbar( 'Machine axes have not been homed. Please re-home your machine.' )
-            return
-        # get current active tool
-        _active = self.printer.getCurrentTool()
-        
-        # get requested tool number
-        sender = self.sender()
-
-        # update buttons to new status
-        for button in self.toolButtons:
-            button.setChecked(False)
-        self.toolButtons[int(self.sender().text()[1:])].setChecked(True)
-
-        # handle tool already active on printer
-        if int(_active) == int(sender.text()[1:]):
-            msg = QMessageBox()
-            status = msg.question( self, 'Unload ' + sender.text(), 'Unload ' + sender.text() + ' and return carriage to the current position?',QMessageBox.Yes | QMessageBox.No  )
-            if status == QMessageBox.Yes:
-                self.displayStandby()
-                self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
-                if len(self.cp_coords) > 0:
-                    self.printer.unloadTools()
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
-                else:
-                    tempCoords = self.printer.getCoordinates()
-                    self.printer.unloadTools()
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
-                # End video threads and restart default thread
-                self.video_thread.alignment = False
-                # Update GUI for unloading carriage
-                self.calibration_button.setDisabled(False)
-                self.controlPoint_button.setDisabled(False)
-                self.updateMessagebar( 'Ready.' )
-                self.updateStatusbar( 'Ready.' )
-                self.displayToolLoaded(tool=-1)
-            else:
-                # User cancelled, do nothing
-                return
-        else:
-            # Requested tool is different from active tool
-            msg = QMessageBox()
-            status = msg.question( self, 'Confirm loading ' + sender.text(), 'Load ' + sender.text() + ' and move to current position?',QMessageBox.Yes | QMessageBox.No  )
-            
-            if status == QMessageBox.Yes:
-                self.displayStandby()
-                # return carriage to control point position
-                if len(self.cp_coords) > 0:
-                    self.printer.unloadTools()
-                    self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
-                else:
-                    tempCoords = self.printer.getCoordinates()
-                    self.printer.unloadTools()
-                    self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
-                # START DETECTION THREAD HANDLING
-                # close camera settings dialog so it doesn't crash
+### # save user settings.json
+    def saveUserSettings(self):
+        global video_src
+        try:
+            with open( 'settings.json','w' ) as outputfile:
+                json.dump(self.options, outputfile)
+            new_video_src = 0
+            for machine in self.options['printer']:
                 try:
-                    if self.settings_dialog.isVisible():
-                        self.settings_dialog.reject()
-                except: None
-                # update GUI
-                self.controlPoint_button.setDisabled(True)
-                self.mainSidebar_panel.setDisabled(False)
-                self.mainSidebar_panel.setCurrentIndex(0)
-                self.calibration_button.setDisabled(True)
-                self.cycles_spinbox.setDisabled(True)
-                self.displayToolLoaded(tool=int(sender.text()[1:]))
-            else:
-                self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
-        app.processEvents()
-
-    # Display standby placeholder
-    def displayStandby( self ):
-        self.image_label.setPixmap(self.standbyImage)
-        standbyMessage = 'Changing tools, please stand by..'
-        self.updateStatusbar( standbyMessage )
-        self.image_label.setText( standbyMessage )
-        app.processEvents()
-        return
-
-    # update GUI after loading tool
-    def displayToolLoaded( self, tool ):
-        if( tool == -1 ):
-            standbyMessage = 'Tools unloaded from machine.'
-        else:
-            standbyMessage = 'T' + str(tool) + ' loaded.'
-        self.updateStatusbar( standbyMessage )
-        self.image_label.setText( standbyMessage )
-        app.processEvents()
-        return
-
-    def checkMachine(self):
-        if( self.printer.isHomed() is False ):
-            # Update status bar
-            self.updateStatusbar("One or more axes are not homed. Please re-home machine.")
-            self.statusBar.setStyleSheet(style_red)
-            # Update instruction box
-            self.instructions_text.setText("One or more axes are not homed. Please home your machine and retry.")
-            return False
-        else:
-            self.statusBar.setStyleSheet(style_default)
-        return True
-
-    def resetConnectInterface(self):
-        self.connect_button.setDisabled(False)
-        self.disconnect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
-        self.mainSidebar_panel.setDisabled(True)
-        self.mainSidebar_panel.setCurrentIndex(0)
-        self.connection_status.setText( 'Disconnected' )
-        self.connection_status.setStyleSheet(style_red)
-        self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
-        self.cp_label.setStyleSheet(style_red)
-        self.cycles_spinbox.setDisabled(True)
-        if not self.small_display:
-            self.analysisMenu.setDisabled(True)
-        self.detectOn_checkbox.setChecked(False)
-        self.detectOn_checkbox.setDisabled(True)
-        self.xray_checkbox.setDisabled(True)
-        self.xray_checkbox.setChecked(False)
-        self.xray_checkbox.setVisible(False)
-        self.relaxedDetection_checkbox.setDisabled(True)
-        self.relaxedDetection_checkbox.setChecked(False)
-        self.relaxedDetection_checkbox.setVisible(False)
-        self.altAlgorithm_checkbox.setDisabled(True)
-        self.altAlgorithm_checkbox.setChecked(False)
-        self.altAlgorithm_checkbox.setVisible(False)
-        self.video_thread.detection_on = False
-        self.video_thread.loose = False
-        self.video_thread.xray = False
-        self.video_thread.alignment = False
-        self.autoCalibrateEndstop_button.setDisabled(True)
-        self.crosshair = False
-        self.statusBar.setStyleSheet(style_default)
-        self.instructions_text.setText("Please enter your printer address and click \"Connect..\" to start.")
-        index = self.toolBox_boxlayout.count()-1
-        while index >= 0:
-            curWidget = self.toolBox_boxlayout.itemAt(index).widget()
-            curWidget.setParent(None)
-            index -= 1
-        self.toolButtons_box.setVisible(False)
-        self.toolButtons = []
-        self.repaint()
-
-    def disableButtonsCP(self):
-        for item in self.toolButtons:
-            item.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
-
+                    if( machine['default'] == 1 ):
+                        new_video_src = machine['video_src']
+                        self.video_thread.changeVideoSrc( newSrc=new_video_src )
+                        video_src = new_video_src
+                        break
+                except KeyError as ke:
+                    # No default camera defined
+                    pass
+            _logger.info( 'User preferences saved to settings.json' )
+            self.updateStatusbar( 'User preferences saved to settings.json' )
+        except Exception as e1:
+            _logger.error( 'Error saving user settings file.' + str(e1) )
+            self.updateStatusbar( 'Error saving user settings file.' )
+### # prepare for CP capture
     def setupCP(self):
         # Check if machine is ready for movement
         if( self.checkMachine() is False ):
-            # Machine is not homed, don't do anything and return
-            self.updateStatusbar( 'Machine is not homed.' )
-            self.statusBar.setStyleSheet(style_red)
+            # Machine isn't ready, don't do anything.
+            app.processEvents()
             return
         # disable buttons for CP capture run
         self.disableButtonsCP()
@@ -3022,8 +2652,6 @@ class App(QMainWindow):
         if len(self.cp_coords) > 0:
             self.printer.unloadTools()
             self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']), Y=str(self.cp_coords['Y']), Z=str(self.cp_coords['Z']))
-        #dlg = CPDialog(parent=self)
-        #HBHBHB 123
         # Enable automated button
         self.autoCalibrateEndstop_button.setDisabled(False)
         # Enable capture button
@@ -3033,7 +2661,14 @@ class App(QMainWindow):
         # wait for user to conclude with state flag
         self.flag_CP_setup = True
         return
-    
+### # start automatic CP capture
+    def startAutoCPCapture(self):
+        _logger.info( 'Starting automated CP capture..' )
+        self.video_thread.align_endstop = True
+        while self.video_thread.align_endstop and self.video_thread._running:
+            app.processEvents()
+        self.readyToCalibrate()
+### # capture CP coordinates
     def captureControlPoint(self):
         # reset state flag
         self.flag_CP_setup = False
@@ -3049,48 +2684,104 @@ class App(QMainWindow):
         self.readyToCalibrate()
         # Move printer to CP to prepare for next step
         self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']), Y=str(self.cp_coords['Y']) )
-
-    def readyToCalibrate(self):
-        for item in self.toolButtons:
-            item.setDisabled(False)
-        self.manualAlignment_button.setDisabled(True)
-        self.statusBar.showMessage( 'Control Point coordinates saved.',3000)
-        self.image_label.setText( 'Control Point set. Click \"Start Tool Alignment\" to calibrate..' )
-        self.controlPoint_button.setText( 'Set new control point.. ' )
-        #self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
-        self.cp_label.setStyleSheet(style_green)
-        self.detectOn_checkbox.setChecked(False)
-        self.detectOn_checkbox.setDisabled(False)
-        self.detectOn_checkbox.setVisible(True)
-        self.xray_checkbox.setDisabled(True)
-        self.xray_checkbox.setChecked(False)
-        self.xray_checkbox.setVisible(False)
-        self.relaxedDetection_checkbox.setDisabled(True)
-        self.relaxedDetection_checkbox.setChecked(False)
-        self.relaxedDetection_checkbox.setVisible(False)
-        self.altAlgorithm_checkbox.setDisabled(True)
-        self.altAlgorithm_checkbox.setChecked(False)
-        self.altAlgorithm_checkbox.setVisible(False)
-        self.video_thread.detection_on = False
-        self.video_thread.loose = False
-        self.video_thread.xray = False
-        self.video_thread.alignment = False
-        self.calibration_button.setDisabled(False)
-        self.controlPoint_button.setDisabled(False)
-        self.autoCalibrateEndstop_button.setDisabled(True)
-
-        self.toolButtons_box.setVisible(True)
-        self.cycles_spinbox.setDisabled(False)
-
-        if len(self.calibrationResults) > 1:
-            # Issue #25: fullscreen mode menu error: can't disable items
-            if not self.small_display:
-                self.analysisMenu.setDisabled(False)
+### # manually capture tool offset
+    def captureOffset(self):
+        # Check if performing CP setup
+        if self.flag_CP_setup:
+            try:
+                self.captureControlPoint()
+            except Exception:
+                _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
+                self.statusBar.showMessage( 'Error 1 in manual capture. Check logs.' )
+                return
         else:
-            # Issue #25: fullscreen mode menu error: can't disable items
-            if not self.small_display:
-                self.analysisMenu.setDisabled(True)
+            # tool capture
+            try:
+                _logger.debug( 'Manual offset calculation starting..' )
+                currentPosition = self.printer.getCoordinates()
+                curr_x = currentPosition['X']
+                curr_y = currentPosition['Y']
+                # Get active tool
+                _active = int(self.printer.getCurrentTool())
+                #get tool offsets
+                self.tool_offsets = self.printer.getToolOffset(_active)
+                # calculate X and Y coordinates
+                final_x = np.around( (self.cp_coords['X'] + self.tool_offsets['X']) - curr_x, 3 )
+                final_y = np.around( (self.cp_coords['Y'] + self.tool_offsets['Y']) - curr_y, 3 )
+                offsetString  = 'Tool ' + str(_active) + ' offsets:  X' + str(final_x) + ' Y' + str(final_y)
+                _logger.info(offsetString)
+                self.printer.setToolOffsets(tool=str(_active), X=str(final_x), Y=str(final_y) )
+            except Exception:
+                self.statusBar.showMessage( 'Error 2 in manual capture. Check logs.' )
+                _logger.error( 'Capture Offset error 2: \n' + traceback.format_exc() )
+            _logger.debug( 'Manual offset calculation ending..' )
+            self.toolButtons[_active].setObjectName( 'completed' )
+            self.toolButtons[_active].setStyle(self.toolButtons[_active].style())
+        self.crosshair_alignment = False
+        return
+### # run automated tool calibration
+    def runCalibration(self):
+        _logger.debug( 'Calibration setup method starting.' )
+        # reset debugString
+        self.debugString = ''
+        # prompt for user to apply results
+        msgBox = QMessageBox(parent=self)
+        msgBox.setIcon(QMessageBox.Information)
+        msgBox.setText( 'Do you want to start automated tool alignment?' )
+        msgBox.setWindowTitle( 'Start Calibration' )
+        yes_button = msgBox.addButton( 'Start calibration..',QMessageBox.YesRole)
+        yes_button.setObjectName( 'active' )
+        yes_button.setStyleSheet(style_green)
+        no_button = msgBox.addButton( 'Cancel',QMessageBox.NoRole)
 
+        returnValue = msgBox.exec_()
+        if msgBox.clickedButton() == no_button:
+            return
+        # close camera settings dialog so it doesn't crash
+        try:
+            if self.settings_dialog.isVisible():
+                self.settings_dialog.reject()
+        except: None
+        # update GUI
+        self.controlPoint_button.setDisabled(True)
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
+        self.calibration_button.setDisabled(True)
+        self.xray_checkbox.setDisabled(False)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(True)
+        self.relaxedDetection_checkbox.setDisabled(False)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(True)
+        self.altAlgorithm_checkbox.setDisabled(False)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(True)
+        self.toolButtons_box.setVisible(False)
+        self.detectOn_checkbox.setVisible(False)
+        self.autoCalibrateEndstop_button.setDisabled(True)
+        _logger.debug( 'Updating tool interface..' )
+        # for tool in self.printerObject['tools']:
+        #     current_tool = self.printer.getToolOffset( tool['number'] ) 
+        #     x_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['X']))
+        #     y_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['Y']))
+        #     x_tableitem.setBackground(QColor(255,255,255,255))
+        #     y_tableitem.setBackground(QColor(255,255,255,255))
+            # self.offsets_table.setVerticalHeaderItem(i,QTableWidgetItem( 'T'+str(i)))
+            # self.offsets_table.setItem(i,0,x_tableitem)
+            # self.offsets_table.setItem(i,1,y_tableitem)
+        # get number of repeat cycles
+        self.cycles_spinbox.setDisabled(True)
+        self.cycles = self.cycles_spinbox.value()
+
+        # create the Nozzle detection capture thread
+        _logger.debug( 'Launching calibration threads..' )
+        self.video_thread.display_crosshair = True
+        self.video_thread.detection_on = True
+        self.video_thread.xray = False
+        self.video_thread.loose = False
+        self.video_thread.alignment = True
+        _logger.debug( 'Calibration setup method exiting.' )
+### # apply calibration results
     def applyCalibration(self):
         # update GUI
         self.readyToCalibrate()
@@ -3130,213 +2821,7 @@ class App(QMainWindow):
         self.video_thread.display_crosshair = False
         # run stats
         self.analyzeResults()
-
-    def analyzeResults(self, graph=False, export=False):
-        if len(self.calibrationResults) < 1:
-            self.updateStatusbar( 'No calibration data found.' )
-            return
-        if graph or export:
-            # get data as 3 dimensional array [tool][axis][datapoints] normalized around mean of each axis
-            (numTools, totalRuns, toolData) = self.parseData(self.calibrationResults)
-        else:
-            # display stats to terminal
-            self.stats()
-        if graph:
-            matplotlib.use( 'Qt5Agg',force=True)
-            # set up color and colormap arrays
-            colorMap = ["Greens","Oranges","Blues", "Reds"] #["Blues", "Reds","Greens","Oranges"]
-            colors = ['blue','red','green','orange']
-            # initiate graph data - 1 tool per column
-            # Row 0: scatter plot with standard deviation box
-            # Row 1: histogram of X axis data
-            # Row 2: histogram of Y axis data
-            
-            # Set backend (if needed)
-            #plt.switch_backend( 'Qt4Agg' )
-
-            fig, axes = plt.subplots(ncols=3,nrows=numTools,constrained_layout=False)
-
-            for i, data in enumerate(toolData):
-                # create a color array the length of the number of tools in the data
-                color = np.arange(len(data[0]))
-
-                # Axis formatting
-                # Major ticks
-                axes[i][0].xaxis.set_major_formatter(FormatStrFormatter( '%.3f' ))
-                axes[i][0].yaxis.set_major_formatter(FormatStrFormatter( '%.3f' ))
-                # Minor ticks
-                axes[i][0].xaxis.set_minor_formatter(FormatStrFormatter( '%.3f' ))
-                axes[i][0].yaxis.set_minor_formatter(FormatStrFormatter( '%.3f' ))
-                # Draw 0,0 lines
-                axes[i][0].axhline()
-                axes[i][0].axvline()
-                # x&y std deviation box
-                x_sigma = np.around(np.std(data[0]),3)
-                y_sigma = np.around(np.std(data[1]),3)
-                axes[i][0].add_patch(patches.Rectangle((-1*x_sigma,-1*y_sigma), 2*x_sigma, 2*y_sigma, color="green",fill=False, linestyle='dotted' ))
-                axes[i][0].add_patch(patches.Rectangle((-2*x_sigma,-2*y_sigma), 4*x_sigma, 4*y_sigma, color="red",fill=False, linestyle='-.' ))
-                
-                # scatter plot for tool data
-                axes[i][0].scatter(data[0], data[1], c=color, cmap=colorMap[i])
-                axes[i][0].autoscale = True
-                
-                # Histogram data setup
-                # Calculate number of bins per axis
-                x_intervals = int(np.around(math.sqrt(len(data[0])),0)+1)
-                y_intervals = int(np.around(math.sqrt(len(data[1])),0)+1)
-                
-                # plot histograms
-                x_kwargs = dict(alpha=0.5, bins=x_intervals,rwidth=.92, density=True)
-                n, bins, hist_patches = axes[i][1].hist([data[0],data[1]],**x_kwargs, color=[colors[0],colors[1]], label=['X','Y'])
-                axes[i][2].hist2d(data[0], data[1], bins=x_intervals, cmap='Blues' )
-                axes[i][1].legend()
-
-
-                # add a 'best fit' line
-                # calculate mean and std deviation per axis
-                x_mean = np.mean(data[0])
-                y_mean = np.mean(data[1])
-                x_sigma = np.around(np.std(data[0]),3)
-                y_sigma = np.around(np.std(data[1]),3)
-                # calculate function lines for best fit
-                x_best = ((1 / (np.sqrt(2 * np.pi) * x_sigma)) *
-                    np.exp(-0.5 * (1 / x_sigma * (bins - x_mean))**2))
-                y_best = ((1 / (np.sqrt(2 * np.pi) * y_sigma)) *
-                    np.exp(-0.5 * (1 / y_sigma * (bins - y_mean))**2))
-                # add best fit line to plots
-                axes[i][1].plot(bins, x_best, '-.',color=colors[0])
-                axes[i][1].plot(bins, y_best, '--',color=colors[1])
-
-                x_count = int(sum( p == True for p in ((data[0] >= (x_mean - x_sigma)) & (data[0] <= (x_mean + x_sigma))) )/len(data[0])*100)
-                y_count = int(sum( p == True for p in ((data[1] >= (y_mean - y_sigma)) & (data[1] <= (y_mean + y_sigma))) )/len(data[1])*100)
-                # annotate std dev values
-                annotation_text = "Xσ: " + str(x_sigma) + " ("+str(x_count) + "%)"
-                if x_count < 68:
-                    x_count = int(sum( p == True for p in ((data[0] >= (x_mean - 2*x_sigma)) & (data[0] <= (x_mean + 2*x_sigma))) )/len(data[0])*100) 
-                    annotation_text += " --> 2σ: " + str(x_count) + "%"
-                    if x_count < 95 and x_sigma*2 > 0.1:
-                        annotation_text += " -- check axis!"
-                    else: annotation_text += " -- OK"
-                annotation_text += "\nYσ: " + str(y_sigma) + " ("+str(y_count) + "%)"
-                if y_count < 68: 
-                    y_count = int(sum( p == True for p in ((data[1] >= (y_mean - 2*y_sigma)) & (data[1] <= (y_mean + 2*y_sigma))) )/len(data[1])*100) 
-                    annotation_text += " --> 2σ: " + str(y_count) + "%"
-                    if y_count < 95 and y_sigma*2 > 0.1:
-                        annotation_text += " -- check axis!"
-                    else: annotation_text += " -- OK"
-                axes[i][0].annotate(annotation_text, (10,10),xycoords='axes pixels' )
-                axes[i][0].annotate( 'σ',(1.1*x_sigma,-1.1*y_sigma),xycoords='data',color='green' )
-                axes[i][0].annotate( '2σ',(1.1*2*x_sigma,-1.1*2*y_sigma),xycoords='data',color='red' )
-                # # place title for graph
-                axes[i][0].set_ylabel("Tool " + str(i) + "\nY")
-                axes[i][0].set_xlabel("X")
-                axes[i][2].set_ylabel("Y")
-                axes[i][2].set_xlabel("X")
-                
-                if i == 0:
-                    axes[i][0].set_title( 'Scatter Plot' )
-                    axes[i][1].set_title( 'Histogram' )
-                    axes[i][2].set_title( '2D Histogram' )
-            plt.tight_layout()
-            figManager = plt.get_current_fig_manager()
-            figManager.window.showMaximized()
-            plt.ion()
-            plt.show()
-
-        if export:
-            # export JSON data to file
-            try:
-                self.calibrationResults.append({ "printer":self.printerURL, "datetime":datetime.now() })
-                with open( 'output.json','w' ) as outputfile:
-                    json.dump(self.calibrationResults, outputfile)
-            except Exception as e1:
-                _logger.error( 'Failed to export alignment data:' + str(e1) )
-                self.updateStatusbar( 'Error exporting data, please check terminal for details.' )
-
-    def stats(self):
-        ###################################################################################
-        # Report on repeated executions
-        ###################################################################################
-        print( '' )
-        print( 'Repeatability statistics for '+str(self.cycles)+' repeats:' )
-        print( '+-------------------------------------------------------------------------------------------------------+' )
-        print( '|   |                   X                             |                        Y                        |' )
-        print( '| T |   Avg   |   Max   |   Min   |  StdDev |  Range  |   Avg   |   Max   |   Min   |  StdDev |  Range  |' )
-        for myTool in self.printerObject['tools']:
-            # create array of results for current tool
-            _rawCalibrationData = [line for line in self.calibrationResults if line['tool'] == str(myTool['number'])]
-            x_array = [float(line['X']) for line in _rawCalibrationData]
-            y_array = [float(line['Y']) for line in _rawCalibrationData]
-            mpp_value = np.average([float(line['mpp']) for line in _rawCalibrationData])
-            cycles = np.max(
-                [float(line['cycle']) for line in _rawCalibrationData]
-            )
-            x_avg = np.average(x_array)
-            y_avg = np.average(y_array)
-            x_min = np.min(x_array)
-            y_min = np.min(y_array)
-            x_max = np.max(x_array)
-            y_max = np.max(y_array)
-            x_std = np.std(x_array)
-            y_std = np.std(y_array)
-            x_ran = x_max - x_min
-            y_ran = y_max - y_min
-            print( '| {0:1.0f} '.format(int(myTool['number'])) 
-                + '| {0:7.3f} '.format(x_avg)
-                + '| {0:7.3f} '.format(x_max)
-                + '| {0:7.3f} '.format(x_min)
-                + '| {0:7.3f} '.format(x_std)
-                + '| {0:7.3f} '.format(x_ran)
-                + '| {0:7.3f} '.format(y_avg)
-                + '| {0:7.3f} '.format(y_max)
-                + '| {0:7.3f} '.format(y_min)
-                + '| {0:7.3f} '.format(y_std)
-                + '| {0:7.3f} '.format(y_ran)
-                + '|'
-            )        
-        print( '+-------------------------------------------------------------------------------------------------------+' )
-        print( 'Note: Repeatability cannot be better than one pixel (MPP=' + str(mpp_value) + ' ).' )
-
-    def parseData( self, rawData ):
-        # create empty output array
-        toolDataResult = []
-        # get number of tools
-        _numTools = np.max([ int(line['tool']) for line in rawData ]) + 1
-        _cycles = np.max([ int(line['cycle']) for line in rawData ])
-        
-        for i in range(_numTools):
-            x = [float(line['X']) for line in rawData if int(line['tool']) == i]
-            y = [float(line['Y']) for line in rawData if int(line['tool']) == i]
-            # variable to hold return data coordinates per tool formatted as a 2D array [x_value, y_value]
-            tempPairs = []
-
-            # calculate stats
-            # mean values
-            x_mean = np.around(np.mean(x),3)
-            y_mean = np.around(np.mean(y),3)
-            # median values
-            x_median = np.around(np.median(x),3)
-            y_median = np.around(np.median(y),3)
-            # ranges (max - min per axis)
-            x_range = np.around(np.max(x) - np.min(x),3)
-            y_range = np.around(np.max(y) - np.min(y),3)
-            # standard deviations
-            x_sig = np.around(np.std(x),3)
-            y_sig = np.around(np.std(y),3)
-
-            # normalize data around mean
-            x -= x_mean
-            y -= y_mean
-            
-            # temporary object to append coordinate pairs into return value
-            tempPairs.append(x)
-            tempPairs.append(y)
-
-            # add data to return object
-            toolDataResult.append(tempPairs)
-        # return dataset
-        return ( _numTools, _cycles, toolDataResult )
-
+### # disconnect from printer
     def disconnectFromPrinter(self):
         _logger.info( 'Terminating connection to machine.. ' )
         # temporarily suspend GUI and display status message
@@ -3434,102 +2919,547 @@ class App(QMainWindow):
         self.altAlgorithm_checkbox.setDisabled(True)
         self.resetConnectInterface()
 
-    def runCalibration(self):
-        _logger.debug( 'Calibration setup method starting.' )
-        # reset debugString
-        self.debugString = ''
-        # prompt for user to apply results
-        msgBox = QMessageBox(parent=self)
-        msgBox.setIcon(QMessageBox.Information)
-        msgBox.setText( 'Do you want to start automated tool alignment?' )
-        msgBox.setWindowTitle( 'Start Calibration' )
-        yes_button = msgBox.addButton( 'Start calibration..',QMessageBox.YesRole)
-        yes_button.setObjectName( 'active' )
-        yes_button.setStyleSheet(style_green)
-        no_button = msgBox.addButton( 'Cancel',QMessageBox.NoRole)
 
-        returnValue = msgBox.exec_()
-        if msgBox.clickedButton() == no_button:
+### Utility functions
+### # check if machine is ready to move
+    def checkMachine(self):
+        if( self.printer.isHomed() is False ):
+            # Update status bar
+            self.updateStatusbar( "One or more axes are not homed. Please re-home machine." )
+            self.updateMessagebar("")
+            self.statusBar.setStyleSheet(style_red)
+            # Update instruction box
+            self.instructions_text.setText("One or more axes are not homed. Please home your machine and retry.")
+            return False
+        else:
+            self.statusBar.setStyleSheet(style_default)
+        return True
+### # load tool into machine
+    def callTool(self):
+        # Check if machine is ready for movement
+        if( self.checkMachine() is False ):
+            # Machine is not homed, don't do anything and return
             return
-        # close camera settings dialog so it doesn't crash
-        try:
-            if self.settings_dialog.isVisible():
-                self.settings_dialog.reject()
-        except: None
-        # update GUI
+        self.manualAlignment_button.setDisabled(False)
+        # handle scenario where machine is busy and user tries to select a tool.
+        if not self.printer.isIdle():
+            self.updateStatusbar( 'Machine is not idle, cannot select tool.' )
+            return
+        # check if machine is homed or not
+        if( self.printer.isHomed() is False ):
+            self.updateStatusbar( 'Machine axes have not been homed. Please re-home your machine.' )
+            return
+        # get current active tool
+        _active = self.printer.getCurrentTool()      
+        # get requested tool number
+        sender = self.sender()
+        # update buttons to new status
+        for button in self.toolButtons:
+            button.setChecked(False)
+        self.toolButtons[int(self.sender().text()[1:])].setChecked(True)
+        # handle tool already active on printer
+        if int(_active) == int(sender.text()[1:]):
+            msg = QMessageBox()
+            status = msg.question( self, 'Unload ' + sender.text(), 'Unload ' + sender.text() + ' and return carriage to the current position?',QMessageBox.Yes | QMessageBox.No  )
+            if status == QMessageBox.Yes:
+                self.displayStandby()
+                self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
+                if len(self.cp_coords) > 0:
+                    self.printer.unloadTools()
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                else:
+                    tempCoords = self.printer.getCoordinates()
+                    self.printer.unloadTools()
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                # End video threads and restart default thread
+                self.video_thread.alignment = False
+                # Update GUI for unloading carriage
+                self.calibration_button.setDisabled(False)
+                self.controlPoint_button.setDisabled(False)
+                self.updateMessagebar( 'Ready.' )
+                self.updateStatusbar( 'Ready.' )
+                self.displayToolLoaded(tool=-1)
+            else:
+                # User cancelled, do nothing
+                return
+        else:
+            # Requested tool is different from active tool
+            msg = QMessageBox()
+            status = msg.question( self, 'Confirm loading ' + sender.text(), 'Load ' + sender.text() + ' and move to current position?',QMessageBox.Yes | QMessageBox.No  )
+            
+            if status == QMessageBox.Yes:
+                self.displayStandby()
+                # return carriage to control point position
+                if len(self.cp_coords) > 0:
+                    self.printer.unloadTools()
+                    self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                else:
+                    tempCoords = self.printer.getCoordinates()
+                    self.printer.unloadTools()
+                    self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                # START DETECTION THREAD HANDLING
+                # close camera settings dialog so it doesn't crash
+                try:
+                    if self.settings_dialog.isVisible():
+                        self.settings_dialog.reject()
+                except: None
+                # update GUI
+                self.controlPoint_button.setDisabled(True)
+                self.mainSidebar_panel.setDisabled(False)
+                self.mainSidebar_panel.setCurrentIndex(0)
+                self.calibration_button.setDisabled(True)
+                self.cycles_spinbox.setDisabled(True)
+                self.displayToolLoaded(tool=int(sender.text()[1:]))
+            else:
+                self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
+        app.processEvents()
+### # convert image to Pixmap datatype
+    def convert_cv_qt(self, cv_img):
+        # Convert from an opencv image to QPixmap
+        rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        convert_to_Qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        p = convert_to_Qt_format.scaled(display_width, display_height, Qt.KeepAspectRatio)
+        return QPixmap.fromImage(p)
+### # add a new offset to calibration results
+    def addCalibrationResult(self, result={}):
+        self.calibrationResults.append(result)
+### # event handler: jog panel click
+    def jogPanelButton_clickHandler(self, buttonName):
+        # Check if machine is ready for movement
+        if( self.checkMachine() is False ):
+            # Machine is not homed, don't do anything and return
+            return
+        increment_amount = 1
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount = 1
+        elif self.button_01.isChecked():
+            increment_amount = 0.1
+        elif self.button_001.isChecked():
+            increment_amount = 0.01
+        # Call corresponding axis gcode command
+        if buttonName == 'x_left':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(-1*increment_amount) )
+        elif buttonName == 'x_right':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(increment_amount) )
+        elif buttonName == 'y_left':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(-1*increment_amount) )
+        elif buttonName == 'y_right':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(increment_amount) )
+        elif buttonName == 'z_down':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(-1*increment_amount) )
+        elif buttonName == 'z_up':
+            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(increment_amount) )
+        return
+### # sanitize printer URL
+    def sanitizeURL(self, inputString='http://localhost' ):
+        _errCode = 0
+        _errMsg = ''
+        _printerURL = 'http://localhost'
+        from urllib.parse import urlparse
+        u = urlparse(inputString)
+        scheme = u[0]
+        netlocation = u[1]
+        if len(scheme) < 4 or scheme.lower() not in ['http']:
+            _errCode = 1
+            _errMsg = 'Invalid scheme. Please only use http connections.'
+        elif len(netlocation) < 1:
+            _errCode = 2
+            _errMsg = 'Invalid IP/network address.'
+        elif scheme.lower() in ['https']:
+            _errCode = 3
+            _errMsg = 'Cannot use https connections for Duet controllers'
+        else:
+            _printerURL = scheme + '://' + netlocation
+        return( _errCode, _errMsg, _printerURL )
+### # display settings dialog
+    def displaySettings(self):
+        self.settings_dialog = SettingsDialog(parent=self, addPrinter=False)
+        self.settings_dialog.update_settings.connect( self.updateSettings )
+        self.settings_dialog.exec()
+### # display debug dialog
+    def displayDebug(self):
+        dbg = DebugDialog(parent=self,message=self.debugString)
+        if dbg.exec_():
+            None
+### # analyze calibration results
+    def analyzeResults(self, graph=False, export=False):
+        if len(self.calibrationResults) < 1:
+            self.updateStatusbar( 'No calibration data found.' )
+            return
+        if graph or export:
+            # get data as 3 dimensional array [tool][axis][datapoints] normalized around mean of each axis
+            (numTools, totalRuns, toolData) = self.parseData(self.calibrationResults)
+        else:
+            # display stats to terminal
+            self.stats()
+        if graph:
+            matplotlib.use( 'Qt5Agg',force=True)
+            # set up color and colormap arrays
+            colorMap = ["Greens","Oranges","Blues", "Reds"] #["Blues", "Reds","Greens","Oranges"]
+            colors = ['blue','red','green','orange']
+            # initiate graph data - 1 tool per column
+            # Row 0: scatter plot with standard deviation box
+            # Row 1: histogram of X axis data
+            # Row 2: histogram of Y axis data
+            
+            # Set backend (if needed)
+            #plt.switch_backend( 'Qt4Agg' )
+            fig, axes = plt.subplots(ncols=3,nrows=numTools,constrained_layout=False)
+            for i, data in enumerate(toolData):
+                # create a color array the length of the number of tools in the data
+                color = np.arange(len(data[0]))
+                # Axis formatting
+                # Major ticks
+                axes[i][0].xaxis.set_major_formatter(FormatStrFormatter( '%.3f' ))
+                axes[i][0].yaxis.set_major_formatter(FormatStrFormatter( '%.3f' ))
+                # Minor ticks
+                axes[i][0].xaxis.set_minor_formatter(FormatStrFormatter( '%.3f' ))
+                axes[i][0].yaxis.set_minor_formatter(FormatStrFormatter( '%.3f' ))
+                # Draw 0,0 lines
+                axes[i][0].axhline()
+                axes[i][0].axvline()
+                # x&y std deviation box
+                x_sigma = np.around(np.std(data[0]),3)
+                y_sigma = np.around(np.std(data[1]),3)
+                axes[i][0].add_patch(patches.Rectangle((-1*x_sigma,-1*y_sigma), 2*x_sigma, 2*y_sigma, color="green",fill=False, linestyle='dotted' ))
+                axes[i][0].add_patch(patches.Rectangle((-2*x_sigma,-2*y_sigma), 4*x_sigma, 4*y_sigma, color="red",fill=False, linestyle='-.' ))
+                
+                # scatter plot for tool data
+                axes[i][0].scatter(data[0], data[1], c=color, cmap=colorMap[i])
+                axes[i][0].autoscale = True
+                
+                # Histogram data setup
+                # Calculate number of bins per axis
+                x_intervals = int(np.around(math.sqrt(len(data[0])),0)+1)
+                y_intervals = int(np.around(math.sqrt(len(data[1])),0)+1)
+                
+                # plot histograms
+                x_kwargs = dict(alpha=0.5, bins=x_intervals,rwidth=.92, density=True)
+                n, bins, hist_patches = axes[i][1].hist([data[0],data[1]],**x_kwargs, color=[colors[0],colors[1]], label=['X','Y'])
+                axes[i][2].hist2d(data[0], data[1], bins=x_intervals, cmap='Blues' )
+                axes[i][1].legend()
+                # add a 'best fit' line
+                # calculate mean and std deviation per axis
+                x_mean = np.mean(data[0])
+                y_mean = np.mean(data[1])
+                x_sigma = np.around(np.std(data[0]),3)
+                y_sigma = np.around(np.std(data[1]),3)
+                # calculate function lines for best fit
+                x_best = ((1 / (np.sqrt(2 * np.pi) * x_sigma)) *
+                    np.exp(-0.5 * (1 / x_sigma * (bins - x_mean))**2))
+                y_best = ((1 / (np.sqrt(2 * np.pi) * y_sigma)) *
+                    np.exp(-0.5 * (1 / y_sigma * (bins - y_mean))**2))
+                # add best fit line to plots
+                axes[i][1].plot(bins, x_best, '-.',color=colors[0])
+                axes[i][1].plot(bins, y_best, '--',color=colors[1])
+                x_count = int(sum( p == True for p in ((data[0] >= (x_mean - x_sigma)) & (data[0] <= (x_mean + x_sigma))) )/len(data[0])*100)
+                y_count = int(sum( p == True for p in ((data[1] >= (y_mean - y_sigma)) & (data[1] <= (y_mean + y_sigma))) )/len(data[1])*100)
+                # annotate std dev values
+                annotation_text = "Xσ: " + str(x_sigma) + " ("+str(x_count) + "%)"
+                if x_count < 68:
+                    x_count = int(sum( p == True for p in ((data[0] >= (x_mean - 2*x_sigma)) & (data[0] <= (x_mean + 2*x_sigma))) )/len(data[0])*100) 
+                    annotation_text += " --> 2σ: " + str(x_count) + "%"
+                    if x_count < 95 and x_sigma*2 > 0.1:
+                        annotation_text += " -- check axis!"
+                    else: annotation_text += " -- OK"
+                annotation_text += "\nYσ: " + str(y_sigma) + " ("+str(y_count) + "%)"
+                if y_count < 68: 
+                    y_count = int(sum( p == True for p in ((data[1] >= (y_mean - 2*y_sigma)) & (data[1] <= (y_mean + 2*y_sigma))) )/len(data[1])*100) 
+                    annotation_text += " --> 2σ: " + str(y_count) + "%"
+                    if y_count < 95 and y_sigma*2 > 0.1:
+                        annotation_text += " -- check axis!"
+                    else: annotation_text += " -- OK"
+                axes[i][0].annotate(annotation_text, (10,10),xycoords='axes pixels' )
+                axes[i][0].annotate( 'σ',(1.1*x_sigma,-1.1*y_sigma),xycoords='data',color='green' )
+                axes[i][0].annotate( '2σ',(1.1*2*x_sigma,-1.1*2*y_sigma),xycoords='data',color='red' )
+                # # place title for graph
+                axes[i][0].set_ylabel("Tool " + str(i) + "\nY")
+                axes[i][0].set_xlabel("X")
+                axes[i][2].set_ylabel("Y")
+                axes[i][2].set_xlabel("X")
+                
+                if i == 0:
+                    axes[i][0].set_title( 'Scatter Plot' )
+                    axes[i][1].set_title( 'Histogram' )
+                    axes[i][2].set_title( '2D Histogram' )
+            plt.tight_layout()
+            figManager = plt.get_current_fig_manager()
+            figManager.window.showMaximized()
+            plt.ion()
+            plt.show()
+        if export:
+            # export JSON data to file
+            try:
+                self.calibrationResults.append({ "printer":self.printerURL, "datetime":datetime.now() })
+                with open( 'output.json','w' ) as outputfile:
+                    json.dump(self.calibrationResults, outputfile)
+            except Exception as e1:
+                _logger.error( 'Failed to export alignment data:' + str(e1) )
+                self.updateStatusbar( 'Error exporting data, please check terminal for details.' )
+### # parse raw data for analysis
+    def parseData( self, rawData ):
+        # create empty output array
+        toolDataResult = []
+        # get number of tools
+        _numTools = np.max([ int(line['tool']) for line in rawData ]) + 1
+        _cycles = np.max([ int(line['cycle']) for line in rawData ])
+        
+        for i in range(_numTools):
+            x = [float(line['X']) for line in rawData if int(line['tool']) == i]
+            y = [float(line['Y']) for line in rawData if int(line['tool']) == i]
+            # variable to hold return data coordinates per tool formatted as a 2D array [x_value, y_value]
+            tempPairs = []
+
+            # calculate stats
+            # mean values
+            x_mean = np.around(np.mean(x),3)
+            y_mean = np.around(np.mean(y),3)
+            # median values
+            x_median = np.around(np.median(x),3)
+            y_median = np.around(np.median(y),3)
+            # ranges (max - min per axis)
+            x_range = np.around(np.max(x) - np.min(x),3)
+            y_range = np.around(np.max(y) - np.min(y),3)
+            # standard deviations
+            x_sig = np.around(np.std(x),3)
+            y_sig = np.around(np.std(y),3)
+
+            # normalize data around mean
+            x -= x_mean
+            y -= y_mean
+            
+            # temporary object to append coordinate pairs into return value
+            tempPairs.append(x)
+            tempPairs.append(y)
+
+            # add data to return object
+            toolDataResult.append(tempPairs)
+        # return dataset
+        return ( _numTools, _cycles, toolDataResult )
+### # format stats output
+    def stats(self):
+        ###################################################################################
+        # Report on repeated executions
+        ###################################################################################
+        print( '' )
+        print( 'Repeatability statistics for '+str(self.cycles)+' repeats:' )
+        print( '+-------------------------------------------------------------------------------------------------------+' )
+        print( '|   |                   X                             |                        Y                        |' )
+        print( '| T |   Avg   |   Max   |   Min   |  StdDev |  Range  |   Avg   |   Max   |   Min   |  StdDev |  Range  |' )
+        for myTool in self.printerObject['tools']:
+            # create array of results for current tool
+            _rawCalibrationData = [line for line in self.calibrationResults if line['tool'] == str(myTool['number'])]
+            x_array = [float(line['X']) for line in _rawCalibrationData]
+            y_array = [float(line['Y']) for line in _rawCalibrationData]
+            mpp_value = np.average([float(line['mpp']) for line in _rawCalibrationData])
+            cycles = np.max(
+                [float(line['cycle']) for line in _rawCalibrationData]
+            )
+            x_avg = np.average(x_array)
+            y_avg = np.average(y_array)
+            x_min = np.min(x_array)
+            y_min = np.min(y_array)
+            x_max = np.max(x_array)
+            y_max = np.max(y_array)
+            x_std = np.std(x_array)
+            y_std = np.std(y_array)
+            x_ran = x_max - x_min
+            y_ran = y_max - y_min
+            print( '| {0:1.0f} '.format(int(myTool['number'])) 
+                + '| {0:7.3f} '.format(x_avg)
+                + '| {0:7.3f} '.format(x_max)
+                + '| {0:7.3f} '.format(x_min)
+                + '| {0:7.3f} '.format(x_std)
+                + '| {0:7.3f} '.format(x_ran)
+                + '| {0:7.3f} '.format(y_avg)
+                + '| {0:7.3f} '.format(y_max)
+                + '| {0:7.3f} '.format(y_min)
+                + '| {0:7.3f} '.format(y_std)
+                + '| {0:7.3f} '.format(y_ran)
+                + '|'
+            )        
+        print( '+-------------------------------------------------------------------------------------------------------+' )
+        print( 'Note: Repeatability cannot be better than one pixel (MPP=' + str(mpp_value) + ' ).' )
+
+
+### GUI update helper functions
+### # reset connection to default state
+    def resetConnectInterface(self):
+        self.connect_button.setDisabled(False)
+        self.disconnect_button.setDisabled(True)
+        self.calibration_button.setDisabled(True)
         self.controlPoint_button.setDisabled(True)
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
-        self.calibration_button.setDisabled(True)
-        self.xray_checkbox.setDisabled(False)
-        self.xray_checkbox.setChecked(False)
-        self.xray_checkbox.setVisible(True)
-        self.relaxedDetection_checkbox.setDisabled(False)
-        self.relaxedDetection_checkbox.setChecked(False)
-        self.relaxedDetection_checkbox.setVisible(True)
-        self.altAlgorithm_checkbox.setDisabled(False)
-        self.altAlgorithm_checkbox.setChecked(False)
-        self.altAlgorithm_checkbox.setVisible(True)
-        self.toolButtons_box.setVisible(False)
-        self.detectOn_checkbox.setVisible(False)
-        self.autoCalibrateEndstop_button.setDisabled(True)
-        _logger.debug( 'Updating tool interface..' )
-        # for tool in self.printerObject['tools']:
-        #     current_tool = self.printer.getToolOffset( tool['number'] ) 
-        #     x_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['X']))
-        #     y_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['Y']))
-        #     x_tableitem.setBackground(QColor(255,255,255,255))
-        #     y_tableitem.setBackground(QColor(255,255,255,255))
-            # self.offsets_table.setVerticalHeaderItem(i,QTableWidgetItem( 'T'+str(i)))
-            # self.offsets_table.setItem(i,0,x_tableitem)
-            # self.offsets_table.setItem(i,1,y_tableitem)
-        # get number of repeat cycles
+        self.connection_status.setText( 'Disconnected' )
+        self.connection_status.setStyleSheet(style_red)
+        self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
+        self.cp_label.setStyleSheet(style_red)
         self.cycles_spinbox.setDisabled(True)
-        self.cycles = self.cycles_spinbox.value()
-
-        # create the Nozzle detection capture thread
-        _logger.debug( 'Launching calibration threads..' )
-        self.video_thread.display_crosshair = True
-        self.video_thread.detection_on = True
-        self.video_thread.xray = False
+        if not self.small_display:
+            self.analysisMenu.setDisabled(True)
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.setDisabled(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(False)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(False)
+        self.video_thread.detection_on = False
         self.video_thread.loose = False
-        self.video_thread.alignment = True
-        _logger.debug( 'Calibration setup method exiting.' )
+        self.video_thread.xray = False
+        self.video_thread.alignment = False
+        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.crosshair = False
+        self.statusBar.setStyleSheet(style_default)
+        self.instructions_text.setText("Please enter your printer address and click \"Connect..\" to start.")
+        index = self.toolBox_boxlayout.count()-1
+        while index >= 0:
+            curWidget = self.toolBox_boxlayout.itemAt(index).widget()
+            curWidget.setParent(None)
+            index -= 1
+        self.toolButtons_box.setVisible(False)
+        self.toolButtons = []
+        self.repaint()
+### # disable CP buttons
+    def disableButtonsCP(self):
+        for item in self.toolButtons:
+            item.setDisabled(True)
+        self.controlPoint_button.setDisabled(True)
+### # apply interface ready to calibrate state
+    def readyToCalibrate(self):
+        for item in self.toolButtons:
+            item.setDisabled(False)
+        self.manualAlignment_button.setDisabled(True)
+        self.statusBar.showMessage( 'Control Point coordinates saved.',3000)
+        self.image_label.setText( 'Control Point set. Click \"Start Tool Alignment\" to calibrate..' )
+        self.controlPoint_button.setText( 'Set new control point.. ' )
+        #self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
+        self.cp_label.setStyleSheet(style_green)
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.setDisabled(False)
+        self.detectOn_checkbox.setVisible(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(False)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(False)
+        self.video_thread.detection_on = False
+        self.video_thread.loose = False
+        self.video_thread.xray = False
+        self.video_thread.alignment = False
+        self.calibration_button.setDisabled(False)
+        self.controlPoint_button.setDisabled(False)
+        self.autoCalibrateEndstop_button.setDisabled(True)
 
+        self.toolButtons_box.setVisible(True)
+        self.cycles_spinbox.setDisabled(False)
+
+        if len(self.calibrationResults) > 1:
+            # Issue #25: fullscreen mode menu error: can't disable items
+            if not self.small_display:
+                self.analysisMenu.setDisabled(False)
+        else:
+            # Issue #25: fullscreen mode menu error: can't disable items
+            if not self.small_display:
+                self.analysisMenu.setDisabled(True)
+### # toggle detection
+    def toggle_detection(self):
+        self.video_thread.display_crosshair = not self.video_thread.display_crosshair
+        self.video_thread.detection_on = not self.video_thread.detection_on
+        self.crosshair_alignment = not self.crosshair_alignment
+        if self.video_thread.detection_on:
+            self.xray_checkbox.setDisabled(False)
+            self.xray_checkbox.setVisible(True)
+            self.relaxedDetection_checkbox.setDisabled(False)
+            self.relaxedDetection_checkbox.setVisible(True)
+            self.altAlgorithm_checkbox.setDisabled(False)
+            self.altAlgorithm_checkbox.setVisible(True)
+        else:
+            self.xray_checkbox.setDisabled(True)
+            self.xray_checkbox.setVisible(False)
+            self.relaxedDetection_checkbox.setDisabled(True)
+            self.relaxedDetection_checkbox.setVisible(False)
+            self.altAlgorithm_checkbox.setDisabled(True)
+            self.altAlgorithm_checkbox.setVisible(False)
+            self.updateStatusbar( 'Detection: OFF' )
+### # enable xray output
     def toggle_xray(self):
         try:
             self.video_thread.toggleXray()
         except Exception as e1:
             self.updateStatusbar( 'Detection thread not running.' )
             _logger.error( 'Detection thread error in XRAY: ' +  str(e1) )
-
-    def toggle_loose(self):
+### # toggle relaxed detection
+    def toggle_relaxed(self):
         try:
             self.video_thread.toggleLoose()
         except Exception as e1:
             self.updateStatusbar( 'Detection thread not running.' )
             _logger.error( 'Detection thread error in LOOSE: ' + str(e1) )
-
+### # toggle alternative algorithm
     def toggle_algorithm( self ):
         try:
             self.video_thread.toggleAlgorithm()
         except Exception as e1:
             self.updateStatusbar('Alternative detection algorithm not active.')
             _logger.error('Alternative algorithm error: ' + str(e1) )
+### # display standby image
+    def displayStandby( self ):
+        self.image_label.setPixmap(self.standbyImage)
+        standbyMessage = 'Changing tools, please stand by..'
+        self.updateStatusbar( standbyMessage )
+        self.image_label.setText( standbyMessage )
+        app.processEvents()
+        return
+### # display tool number on GUI
+    def displayToolLoaded( self, tool ):
+        if( tool == -1 ):
+            standbyMessage = 'Tools unloaded from machine.'
+        else:
+            standbyMessage = 'T' + str(tool) + ' loaded.'
+        self.updateStatusbar( standbyMessage )
+        self.updateMessagebar( standbyMessage )
+        app.processEvents()
+        return
 
+
+### slot/signal handlers
+### # update statusBar
     @pyqtSlot(str)
     def updateStatusbar(self, statusCode ):
         self.statusBar.showMessage(statusCode)
-
+### # update MessageBar
     @pyqtSlot(str)
     def updateMessagebar(self, statusCode ):
         self.image_label.setText(statusCode)
-
+### # switch crosshair
     @pyqtSlot(bool)
     def updateCrosshairDisplay( self, crosshair_flag ):
         self.crosshair_alignment = crosshair_flag
         self.crosshair = crosshair_flag
-
+### # update image display
     @pyqtSlot(np.ndarray)
     def update_image(self, cv_img):
         #self.mutex.lock()
@@ -3570,65 +3500,98 @@ class App(QMainWindow):
         qt_img = self.convert_cv_qt(cv_img)
         self.image_label.setPixmap(qt_img)
         #self.mutex.unlock()
-
+### # update CP label
     @pyqtSlot(object)
     def update_cpLabel( self, newCoords ):
         self.cp_coords = newCoords
         self.cp_string = '( ' + str(self.cp_coords['X']) + ', ' + str(self.cp_coords['Y']) + ' )'
         self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
-    
+### # update saved settings.json
     @pyqtSlot( object )
     def updateSettings( self, settingOptions ):
         self.options = settingOptions
-        self.saveUserParameters()
-
+        self.saveUserSettings()
+### # update active printer URL
     @pyqtSlot( int )
     def updatePrinterURL( self, index ):
         self.printerURL = self.options['printer'][index]['address']
         _logger.info('URL updated to: ' + self.options['printer'][index]['address'])
-
+### # create a new connection profile from ConnectionSettings event
     @pyqtSlot()
     def createNewConnection( self ):
         _logger.info('Create a new connection')
         self.newPrinter = True
 
-    def convert_cv_qt(self, cv_img):
-        # Convert from an opencv image to QPixmap
-        rgb_image = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
-        h, w, ch = rgb_image.shape
-        bytes_per_line = ch * w
-        convert_to_Qt_format = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        p = convert_to_Qt_format.scaled(display_width, display_height, Qt.KeepAspectRatio)
-        return QPixmap.fromImage(p)
 
-    def addCalibrationResult(self, result={}):
-        self.calibrationResults.append(result)
-
+### thread control functions
+### # start video thread
+    def startVideo(self):
+        _logger.info( '  .. starting video feed.. ' )
+        # create the video capture thread
+        self.video_thread = CalibrateNozzles(parentTh=self,numTools=0, cycles=1, align=False)
+        # connect its signal to the update_image slot
+        self.video_thread.detection_error.connect(self.updateStatusbar)
+        self.video_thread.status_update.connect(self.updateStatusbar)
+        self.video_thread.message_update.connect(self.updateMessagebar)
+        self.video_thread.change_pixmap_signal.connect(self.update_image)
+        self.video_thread.calibration_complete.connect(self.applyCalibration)
+        self.video_thread.result_update.connect(self.addCalibrationResult)
+        self.video_thread.crosshair_display.connect(self.updateCrosshairDisplay)
+        self.video_thread.update_cpLabel.connect(self.update_cpLabel)
+        # start the thread
+        self.video_thread.start()
+### # stop video thread
+    def stopVideo(self):
+        _logger.info( ' .. stopping video feed..' )
+        try:
+            if self.video_thread.isRunning():
+                self.video_thread.stop()
+        except Exception as vs2:
+            self.updateStatusbar( 'Error 0x03: cannot stop video.' )
+            _logger.error( 'Cannot stop video capture: ' + str(vs2) )
+            _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
+### # stop program and exit
+    def closeEvent(self, event):
+        try:
+            if( self.printer is not None ):
+                self.disconnectFromPrinter()
+        except Exception:
+            _logger.critical( 'Close event error: \n' + traceback.format_exc() )
+        _logger.debug( 'Terminating video thread..' )
+        self.video_thread.terminate()
+        _logger.debug( 'Waiting for video thread to exit..' )
+        self.video_thread.wait()
+        _logger.debug( 'TAMV exiting..' )
+        print()
+        print( 'Thank you for using TAMV!' )
+        print( 'Check out www.jubilee3d.com' )
+        event.accept()
+        sys.exit(0)
 ##############################################################################################################################################################
 ##############################################################################################################################################################
-##### Main program
+## Main program
 if __name__=='__main__':
-    ##### - Setup global debugging flags for imports
+### - Setup global debugging flags for imports
     os.putenv("QT_LOGGING_RULES","qt5ct.debug=false")
     matplotlib.use('Qt5Agg',force=True)
 
-    ##### - Setup argmument parser
+### Setup argmument parser
     # Setup CLI argument parsers
     parser = argparse.ArgumentParser(description='Program to allign multiple tools on Duet/klipper based printers, using machine vision.', allow_abbrev=False)
     parser.add_argument('-d','--debug',action='store_true',help='Enable debug output to terminal')
     # Execute argument parser
     args=vars(parser.parse_args())
     
-    ##### - Setup logging
+### Setup logging
     _logger = logging.getLogger("TAMV")
     _logger.setLevel(logging.DEBUG)
-    ##### -- file handler logging
+### # file handler logging
     file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
     fh = logging.FileHandler( 'TAMV.log' )
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(file_formatter)
     _logger.addHandler(fh)
-    ##### -- console handler logging
+### # console handler logging
     console_formatter = logging.Formatter(fmt='%(levelname)-9s: %(message)s' )
     ch = logging.StreamHandler()
     if( args['debug'] ):
@@ -3638,11 +3601,11 @@ if __name__=='__main__':
     ch.setFormatter(console_formatter)
     _logger.addHandler(ch)
     
-    ##### -- log startup messages
+### # log startup messages
     _logger.debug( 'TAMV starting..' )
     _logger.warning( 'This is an alpha release. Always use only when standing next to your machine and ready to hit EMERGENCY STOP.')
     
-    ##### -- start GUI application
+### start GUI application
     app = QApplication(sys.argv)
     a = App()
     a.show()
