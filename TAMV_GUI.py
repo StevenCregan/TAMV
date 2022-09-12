@@ -2865,20 +2865,21 @@ class App(QMainWindow):
         _ret_error = 0
         printerDisconnected = False
         while( not printerDisconnected ):
-            if self.printer.isIdle() is True and self.printer.isHomed() is True:
+            if self.printer.isIdle() is True:
                 self.printer.flushMovementBuffer()
                 tempCoords = self.printer.getCoordinates()
-                self.printer.unloadTools()
-                # return carriage to control point position
-                _logger.info( ' .. restoring position..' )
-                if len(self.cp_coords) > 0:
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
-                else:
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                if( self.printer.isHomed() ):
+                    self.printer.unloadTools()
+                    # return carriage to control point position
+                    _logger.info( ' .. restoring position..' )
+                    if len(self.cp_coords) > 0:
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    else:
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 printerDisconnected = True
             else:
                 _logger.debug( 'Sleeping to retry disconnect..' )
