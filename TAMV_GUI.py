@@ -388,14 +388,24 @@ class SettingsDialog(QDialog):
         # Printer controller
         self.controllerName = QComboBox()
         self.controllerName.setToolTip( 'Machine firmware family/category')
-        self.controllerName.addItem('RRF/Duet')
-        self.controllerName.addItem('klipper')
+        # get controller index from master list
+        for item in self.parent().firmwareList:
+            self.controllerName.addItem(item)
+        # self.controllerName.addItem('RRF/Duet')
+        # self.controllerName.addItem('klipper')
         if( newPrinter is False ):
-            if( self.default_printer['controller'] == "RRF/Duet" ):
-                self.controllerName.setCurrentIndex(0)
+            # get controller index from master list
+            listIndex = -1
+            for i, item in enumerate(self.parent().firmwareList):
+                if( item == self.default_printer['controller'] ):
+                    listIndex = i
+                    break
+            if( listIndex > -1 ):
+                self.controllerName.setCurrentIndex(listIndex)
             else:
-                self.controllerName.setCurrentIndex(1)
+                _logger.error('Controller name not found for combobox.')
         else:
+            # new printer, default to RRF/Duet
             self.controllerName.setCurrentIndex(0)
         self.controllerName_label = QLabel('Controller Type: ')
         self.controllerName_box =QGroupBox()
@@ -553,10 +563,16 @@ class SettingsDialog(QDialog):
                 self.printerNickname.setText(self.settingsObject['printer'][index]['nickname'])
             else:
                 self.printerNickname.clear()
-            if( self.settingsObject['printer'][index]['controller'] == 'RRF/Duet' ):
-                self.controllerName.setCurrentIndex(0)
+            # get controller index from master list
+            listIndex = -1
+            for i, item in enumerate(self.parent().firmwareList):
+                if( item == self.default_printer['controller'] ):
+                    listIndex = i
+                    break
+            if( listIndex > -1 ):
+                self.controllerName.setCurrentIndex(listIndex)
             else:
-                self.controllerName.setCurrentIndex(1)
+                _logger.error('Controller name not found for combobox.')
             if( len(self.settingsObject['printer'][index]['version']) > 0 ):
                 self.versionName.setText(self.settingsObject['printer'][index]['version'])
             else:
