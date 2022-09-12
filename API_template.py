@@ -1,5 +1,5 @@
 # API template for TAMV interfaces
-# 
+# MAIN CLASS NAME MUST BE "printerAPI" - do not change
 # Search for "##############*** YOUR CUSTOM CODE #################" to find the sections that need to be modified.
 #
 # Not intended to be a gerneral purpose interface; instead, it contains methods
@@ -34,7 +34,7 @@ _logger = logging.getLogger('TAMV.DuetWebAPI')
 #   - "import DuetWebAPI as DWA"
 #   - "self.printer = DWA.DuetWebAPI(self.printerURL)"
 
-class MyDriverAPI:
+class printerAPI:
     # Max time to wait for toolchange before raising a timeout exception, in seconds
     _toolTimeout = 300
     # Max time to wait for HTTP requests to complete

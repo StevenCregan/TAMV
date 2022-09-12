@@ -16,38 +16,13 @@
 # Imports
 # import pstats
 # from tkinter.tix import Tree
+from lib2to3.pgen2 import driver
 from PyQt5.QtWidgets import (
-    QAction,
-    QApplication,
-    QCheckBox,
-    QComboBox,
-    QDesktopWidget,
-    QDialog,
-    QDialogButtonBox,
-    QGridLayout,
-    QGroupBox,
-    QHBoxLayout,
-    # QHeaderView,
-    QInputDialog,
-    QLabel,
-    QLineEdit,
-    QMainWindow,
-    QMenu,
-    # QMenuBar,
-    QMessageBox,
-    QPushButton,
-    QButtonGroup,
-    QSlider,
-    QSpinBox,
-    QStatusBar,
-    QStyle,
-    QTabWidget,
-    # QTableWidget,
-    QSpacerItem,
-    QSizePolicy,
-    QTableWidgetItem,
-    QTextEdit,
-    QVBoxLayout,
+    QAction, QApplication, QCheckBox, QComboBox, QDesktopWidget,
+    QDialog, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
+    QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPushButton,
+    QButtonGroup, QSlider, QSpinBox, QStatusBar, QStyle, QTabWidget,
+    QSpacerItem, QSizePolicy, QTableWidgetItem, QTextEdit, QVBoxLayout,
     QWidget
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter, QColor, QIcon, QFont
@@ -59,7 +34,8 @@ import sys
 import cv2
 import numpy as np
 import math
-import DuetWebAPI as DWA
+import importlib, importlib.util
+# import DuetWebAPI as DWA
 from time import sleep, time
 import datetime
 import json
@@ -1842,6 +1818,9 @@ class App(QMainWindow):
     flag_CP_setup = False
     # main printer class
     printer = None
+    # driver API lists
+    firmwareList = []
+    driverList = []
 
 
 ### Initialize class
@@ -1852,6 +1831,18 @@ class App(QMainWindow):
 ### #  setup class attributes
         self.standbyImage = QPixmap('./standby.jpg')
         self.printer = None
+        # Driver API imports
+        try:
+            with open( 'drivers.json','r' ) as inputfile:
+                driverJSON = json.load(inputfile)
+            _logger.info( '  .. reading drivers..' )
+            for driverEntry in driverJSON:
+                self.firmwareList.append( driverEntry['firmware'] )
+                self.driverList.append( driverEntry['filename'] )            
+        except:
+            _logger.critical( 'Cannot load driver definitions: ' + traceback.format_exc() )
+            raise SystemExit('Cannot load driver definitions.')
+
 ### #  setup window properties
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
@@ -2554,7 +2545,28 @@ class App(QMainWindow):
         _logger.info( 'Attempting to connect to: ' + self.printerURL )
         # Attempt connecting to the Duet controller
         try:
-            self.printer = DWA.DuetWebAPI(self.printerURL)
+            # get active profile controller
+            activeDriver = self.activePrinter['controller']
+            _logger.debug( "Active controller: " + activeDriver )
+            firmwareSelect = None
+            driverSelect = None
+            for i, item in enumerate(self.firmwareList):
+                if( item == activeDriver ):
+                    firmwareSelect = item
+                    driverSelect = self.driverList[i]
+                    _logger.debug('  .. active driver: ' + driverSelect )
+                    break
+            if( firmwareSelect is None or driverSelect is None ):
+                _logger.critical('Cannot load driver for this printer')
+                raise SystemExit('Cannot load driver for this printer')
+            # load active driver
+            spec = importlib.util.spec_from_file_location("printerAPI","./"+driverSelect)
+            driverModule = importlib.util.module_from_spec(spec)
+            sys.modules[driverSelect[:-3]] = driverModule
+            spec.loader.exec_module(driverModule)
+            
+            self.printer = driverModule.printerAPI(self.printerURL)
+            
             if not self.printer.isIdle():
                 # connection failed for some reason
                 self.updateStatusbar( 'Device at '+self.printerURL+' either did not respond or is not a Duet V2 or V3 printer.' )
@@ -2584,9 +2596,9 @@ class App(QMainWindow):
                         toolButton.setVisible(False)
                     self.toolButtons.append(toolButton)
                 _logger.debug( 'Tool data and interface created successfully.' )
-        except Exception as conn1:
+        except Exception:
             self.updateStatusbar( 'Cannot connect to: ' + self.printerURL )
-            _logger.error( 'Cannot connect to machine: ' + str(conn1) )
+            _logger.error( 'Cannot connect to machine: ' + traceback.format_exc() )
             self.resetConnectInterface()
             return
         # Get active tool
@@ -3535,6 +3547,7 @@ class App(QMainWindow):
     @pyqtSlot( int )
     def updatePrinterURL( self, index ):
         self.printerURL = self.options['printer'][index]['address']
+        self.activePrinter = self.options['printer'][index]
         _logger.info('URL updated to: ' + self.options['printer'][index]['address'])
 ### # create a new connection profile from ConnectionSettings event
     @pyqtSlot()
@@ -3624,7 +3637,7 @@ if __name__=='__main__':
 ### # log startup messages
     _logger.debug( 'TAMV starting..' )
     _logger.warning( 'This is an alpha release. Always use only when standing next to your machine and ready to hit EMERGENCY STOP.')
-    
+
 ### start GUI application
     app = QApplication(sys.argv)
     a = App()
