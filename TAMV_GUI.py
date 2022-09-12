@@ -14,7 +14,7 @@
 #
 
 # Imports
-import pstats
+# import pstats
 # from tkinter.tix import Tree
 from PyQt5.QtWidgets import (
     QAction,
@@ -66,6 +66,7 @@ import json
 import time
 import copy
 import argparse
+import traceback
 
 # graphing imports
 import matplotlib
@@ -232,7 +233,7 @@ class CPDialog(QDialog):
         self.z_label = QLabel( 'Z' )
         self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
 
-         # add all labels to button panel layout
+        # add all labels to button panel layout
         self.buttons_layout.addWidget(self.x_label,1,0)
         self.buttons_layout.addWidget(self.y_label,2,0)
         self.buttons_layout.addWidget(self.z_label,3,0)
@@ -275,8 +276,8 @@ class DebugDialog(QDialog):
         try:
             if self.parent().video_thread.isRunning():
                 temp_text += 'Video thread running\n'
-        except Exception as e1:
-            None
+        except Exception:
+            _logger.error( 'Debug window error: \n' + traceback.format_exc() )
         if len(message) > 0:
             temp_text += '\nCalibration Debug Messages:\n' + message
         self.textarea.setText(temp_text)
@@ -363,9 +364,10 @@ class SettingsDialog(QDialog):
             # Get current source from global variable
             global video_src
             currentSrc = video_src
-        except Exception as set1:
+        except Exception:
             self.updateStatusbar( 'Error fetching camera parameters.' )
-            _logger.error( 'Camera Settings: ' + str(set1))
+            _logger.error( 'Camera Error 0x00: \n' + traceback.format_exc() )
+    
         ############# CAMERA TAB: ITEMS
         # Camera Combobox
         self.camera_combo = QComboBox()
@@ -1206,15 +1208,18 @@ class CalibrateNozzles(QThread):
                         while self._running:
                             self.cycles = self.parent().cycles
                             for rep in range(self.cycles):
-                                for tool in range(self.parent().num_tools):
+                                for ptool in self.parent().printerObject['tools']:
+                                # for tool in range(self.parent().num_tools):
                                     _logger.debug( 'Processing events before tool' )
                                     # process GUI events
                                     app.processEvents()
                                     # Update status bar
-                                    self.status_update.emit( 'Calibrating T' + str(tool) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
+                                    self.status_update.emit( 'Calibrating T' + str(ptool['number']) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
                                     # Load next tool for calibration
                                     _logger.debug( 'Sending tool pickup to printer..' )
-                                    self.parent().printer.loadTool(int(tool))
+                                    self.parent().displayStandby()
+                                    _logger.debug( str(self.parent().printer.getJSON()) )
+                                    self.parent().printer.loadTool(int(ptool['number']))
                                     # Move tool to CP coordinates
                                     _logger.debug( 'XX - Jogging tool to calibration set point..' )
                                     self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']) )
@@ -1229,9 +1234,8 @@ class CalibrateNozzles(QThread):
                                         _logger.debug( 'XX - Fetching frame.' )
                                         self.ret, self.cv_img = self.cap.read()
                                         if self.ret:
-                                            _logger.debug( 'XX - Updating frame to GUI' )
                                             local_img = self.cv_img
-                                            self.change_pixmap_signal.emit(local_img)
+                                            # self.change_pixmap_signal.emit(local_img)
                                         else:
                                             _logger.debug( 'XX - Video source invalid, resetting.' )
                                             self.cap.open(video_src)
@@ -1241,24 +1245,24 @@ class CalibrateNozzles(QThread):
                                             #self.cap.set(cv2.CAP_PROP_FPS,25)
                                             self.ret, self.cv_img = self.cap.read()
                                             local_img = self.cv_img
-                                            self.change_pixmap_signal.emit(local_img)
+                                            # self.change_pixmap_signal.emit(local_img)
                                             continue
                                     # Update message bar
                                     self.message_update.emit( 'Searching for nozzle..' )
                                     # Process runtime algorithm changes
                                     
-                                    # HB: Detector stuff
+                                    # Check if detection parameters changed from user input
                                     if self.detector_changed:
                                         self.createDetector()
                                         self.detector_changed = False
                                     # Analyze frame for blobs
                                     _logger.debug( 'alignment analyzing frame..' )
-                                    (c, transform, mpp) = self.calibrateTool(tool, rep)
+                                    (c, transform, mpp) = self.calibrateTool(int(ptool['number']), rep)
                                     _logger.debug( 'alignment analyzing frame complete' )
                                     # process GUI events
                                     app.processEvents()
                                     # apply offsets to machine
-                                    self.parent().printer.setToolOffsets( tool=str(tool), X=str(c['X']), Y=str(c['Y']) )
+                                    self.parent().printer.setToolOffsets( tool=str(ptool['number']), X=str(c['X']), Y=str(c['Y']) )
                             # signal end of execution
                             self._running = False
                         # Update status bar
@@ -1266,6 +1270,7 @@ class CalibrateNozzles(QThread):
                         # HBHBHB
                         # Update debug window with results
                         # self.parent().debugString += '\nCalibration output:\n'
+                        self.parent().displayStandby()
                         self.parent().printer.unloadTools()
                         self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']))
                         self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']))
@@ -1277,28 +1282,23 @@ class CalibrateNozzles(QThread):
                         self.crosshair_display.emit(self.display_crosshair)
                         self._running = False
                         self.calibration_complete.emit()
-                    except Exception as mn1:
+                    except Exception:
                         self.alignment = False
                         self.detection_on = False
                         self.display_crosshair = False
                         self.crosshair_display.emit(self.display_crosshair)
                         self._running = False
-                        self.detection_error.emit( 'Error 0x00: ' + str(mn1))
-                        _logger.error( 'Error 0x00: ' + str(mn1))
+                        self.detection_error.emit( 'Error 0x00: unhandled exception' )
+                        _logger.error( 'Error 0x00: \n' + traceback.format_exc() )
                         self.cap.release()
                 else:
                     # don't run alignment - fetch frames and detect only
                     try:
-                        # HB: Detector stuff
-
                         self._running = True
-                        # transformation matrix
-                        #self.transform_matrix = []
                         while self._running and self.detection_on:
                             # Update status bar
                             #self.status_update.emit( 'Detection mode: ON' )
                             # Process runtime algorithm changes
-                            # HB: Detector stuff
                             if self.detector_changed:
                                 self.createDetector()
                                 self.detector_changed = False
@@ -1306,10 +1306,10 @@ class CalibrateNozzles(QThread):
                             self.analyzeFrame()
                             # process GUI events
                             app.processEvents()
-                    except Exception as mn1:
+                    except Exception:
                         self._running = False
-                        self.detection_error.emit( 'Error 0x00a: ' + str(mn1))
-                        _logger.error( 'Detection error (non-alignment cycle): ' + str(mn1))
+                        self.detection_error.emit( 'Error 0x01: unhandled exception' )
+                        _logger.error( 'Error 0x01: \n' + traceback.format_exc() )
                         self.cap.release()
             elif self.align_endstop:
                 _logger.debug( 'Starting auto-CP detection..' )
@@ -1327,7 +1327,7 @@ class CalibrateNozzles(QThread):
                     self.message_update.emit( 'Searching for endstop..' )
                     # Process runtime algorithm changes
                     # Analyze frame for blobs
-                    self.calibrateTool(tool='endstop', rep=1)
+                    self.calibrateTool(ctool='endstop', rep=1)
                     # process GUI events
                     app.processEvents()
                     _logger.debug( 'Ending CP Auto calibration.' )
@@ -1369,9 +1369,9 @@ class CalibrateNozzles(QThread):
                                 self.change_pixmap_signal.emit(local_img)
                             continue
                         app.processEvents()
-                    except Exception as mn2:
-                        self.status_update( 'Error 0x01: ' + str(mn2) )
-                        _logger.error( 'Detection unhandled exception: ' + str(mn2))
+                    except Exception:
+                        self.status_update( 'Error 0x02: Unhandled exception' )
+                        _logger.error( 'Error 0x02: \n' + traceback.format_exc() )
                         self.cap.release()
                         self.detection_on = False
                         self._running = False
@@ -1389,17 +1389,10 @@ class CalibrateNozzles(QThread):
         nocircle = 0
         # Random time offset
         rd = int(round(time.time()*1000))
-        # reset capture
-        #self.cap.open(video_src)
-        #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-        #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
-        #self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
-        #self.cap.set(cv2.CAP_PROP_FPS,25)
 
         while True and self.detection_on:
             _logger.debug( 'Processing events.' )
             app.processEvents()
-            _logger.debug( 'Events processed.' )
             _logger.debug( 'Reading frame from camera.' )
             self.ret, self.frame = self.cap.read()
             _logger.debug( 'Frame loaded.' )
@@ -1411,16 +1404,15 @@ class CalibrateNozzles(QThread):
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                 _logger.debug( 'Camera source reset.' )
-                #self.cap.set(cv2.CAP_PROP_FPS,25)
                 continue
             #if self.alignment:
             _logger.debug( 'starting detection steps..' )
             try:
                 # capture tool location in machine space before processing
                 toolCoordinates = self.parent().printer.getCoordinates()
-            except Exception as c1:
+            except Exception:
                 toolCoordinates = None
-                _logger.warning( 'Tool coordinates cannot be determined:' + str(c1) )
+                _logger.error( 'Error 0x03 (Tool coordinates cannot be determined) \n' + traceback.format_exc() )
             # capture first clean frame for display
             cleanFrame = self.frame
             # apply nozzle detection algorithm
@@ -1564,6 +1556,7 @@ class CalibrateNozzles(QThread):
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                 continue
+                # HBHBHBHBHB
                 # # capture tool location in machine space before processing
                 # toolCoordinates = self.parent().printer.getCoordinates()
             # capture first clean frame for display
@@ -1598,13 +1591,16 @@ class CalibrateNozzles(QThread):
                         self.frame = cv2.circle(self.frame, center, 150, (255,0,0), 5)
                         self.frame = cv2.circle(self.frame, center, 5, (255,0,255), 2)
                         self.change_pixmap_signal.emit(self.frame)
-                        return ( center, self.parent().printer.getCoordinates() )
+                        try:
+                            return ( center, self.parent().printer.getCoordinates() )
+                        except:
+                            return None
             else:
                 self.parent().updateStatusbar( 'Cannot find endstop! Cancel.' )
                 self.change_pixmap_signal.emit(self.frame)
             continue
 
-    def calibrateTool(self, tool, rep):
+    def calibrateTool(self, ctool, rep):
         # timestamp for caluclating tool calibration runtime
         self.startTime = time.time()
         # average location of keypoints in frame
@@ -1632,8 +1628,8 @@ class CalibrateNozzles(QThread):
         if len(self.transform_matrix) > 1:
             # set state flag to Step 2: nozzle alignment stage
             self.state = 200
-            if str(tool) not in "endstop":
-                self.parent().debugString += '\nCalibrating T'+str(tool)+':C'+str(rep)+': '
+            if str(ctool) not in "endstop":
+                self.parent().debugString += '\nCalibrating T'+str(ctool)+':C'+str(rep)+': '
         
         # Space coordinates
         self.space_coordinates = []
@@ -1642,7 +1638,7 @@ class CalibrateNozzles(QThread):
 
         while True:
             _logger.debug( 'Running calibrate tool..' )
-            if str(tool) not in "endstop":
+            if str(ctool) not in "endstop":
                 (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
                 _logger.debug( 'Captured reference for tool alignment.' )
             else:
@@ -1662,7 +1658,7 @@ class CalibrateNozzles(QThread):
                 # round to 3 decimal places
                 self.average_location = np.around(self.average_location,3)
                 # get another detection validated
-                if str(tool) not in "endstop":
+                if str(ctool) not in "endstop":
                     (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
                 else:
                     (self.xy, self.tool_coordinates) = self.analyzeEndstop()
@@ -1732,8 +1728,8 @@ class CalibrateNozzles(QThread):
                     _logger.info(  '  .. resolution: ' + str(self.mpp) + '/pixel' )
                     # Update GUI thread with current status and percentage complete
                     self.message_update.emit( 'Calibrating rotation.. (100%) - MPP = ' + str(self.mpp))
-                    if str(tool) not in "endstop":
-                        self.status_update.emit( 'Calibrating T' + str(tool) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
+                    if str(ctool) not in "endstop":
+                        self.status_update.emit( 'Calibrating T' + str(ctool) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
                     # save position as previous position
                     self.oldxy = self.xy
                     # save machine coordinates for detected nozzle
@@ -1753,8 +1749,8 @@ class CalibrateNozzles(QThread):
                     self.state = 200
                     # start tool calibration timer
                     self.startTime = time.time()
-                    if str(tool) not in "endstop":
-                        self.parent().debugString += '\nCalibrating T'+str(tool)+':C'+str(rep)+': '
+                    if str(ctool) not in "endstop":
+                        self.parent().debugString += '\nCalibrating T'+str(ctool)+':C'+str(rep)+': '
                     else:
                         self.parent().debugString += '\nCP Autocalibration..'
                     continue
@@ -1762,9 +1758,9 @@ class CalibrateNozzles(QThread):
                 elif self.state == 200:
                     _logger.debug( 'Nozzle alignment start..' )
                     # Update GUI thread with current status and percentage complete
-                    if str(tool) not in "endstop":
+                    if str(ctool) not in "endstop":
                         self.message_update.emit( 'Tool calibration move #' + str(self.calibration_moves))
-                        self.status_update.emit( 'Calibrating T' + str(tool) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
+                        self.status_update.emit( 'Calibrating T' + str(ctool) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
                     else:
                         self.message_update.emit( 'CP calibration move #' + str(self.calibration_moves))
                     # increment moves counter
@@ -1775,11 +1771,18 @@ class CalibrateNozzles(QThread):
                     self.offsets = -1*(0.55*self.transform_matrix.T @ self.v)
                     self.offsets[0] = np.around(self.offsets[0],3)
                     self.offsets[1] = np.around(self.offsets[1],3)
-                    # Move it a bit
-                    _logger.debug( 'Moving nozzle for detection..' )
-                    self.parent().printer.limitAxes()
-                    self.parent().printer.moveRelative( moveSpeed=1000, X=self.offsets[0], Y=self.offsets[1] )
-                    _logger.debug( 'Nozzle movement complete X{0:-1.3f} Y{1:-1.3f} F1000 '.format(self.offsets[0],self.offsets[1]))
+                    # Add rounding handling for endstop alignment
+                    if( str(ctool) in "endstop" ):
+                        if( abs(self.offsets[0]) < 0.05 and abs(self.offsets[1]) < 0.05 ):
+                            self.offsets[0] = 0.0
+                            self.offsets[1] = 0.0
+                            _logger.debug( 'Endstop close enough, truncating moves.' )
+                    else:
+                        # Move it a bit
+                        _logger.debug( 'Moving nozzle for detection..' )
+                        self.parent().printer.limitAxes()
+                        self.parent().printer.moveRelative( moveSpeed=1000, X=self.offsets[0], Y=self.offsets[1] )
+                        _logger.debug( 'Nozzle movement complete X{0:-1.3f} Y{1:-1.3f} F1000 '.format(self.offsets[0],self.offsets[1]))
                     # save position as previous position
                     self.oldxy = self.xy
                     if ( self.offsets[0] == 0.0 and self.offsets[1] == 0.0 ):
@@ -1788,8 +1791,8 @@ class CalibrateNozzles(QThread):
                         self.parent().printer.moveAbsolute( moveSpeed=13200 )
                         # Update GUI with progress
                         # calculate final offsets and return results
-                        if str(tool) not in "endstop":
-                            self.tool_offsets = self.parent().printer.getToolOffset(tool)
+                        if str(ctool) not in "endstop":
+                            self.tool_offsets = self.parent().printer.getToolOffset(ctool)
                         else:
                             #HBHBHB: TODO ADD PROBE OFFSETS TO THIS CALCULATION
                             self.tool_offsets = {
@@ -1797,7 +1800,7 @@ class CalibrateNozzles(QThread):
                                 'Y' : 0,
                                 'Z' : 0
                             }
-                        if str(tool) not in "endstop":
+                        if str(ctool) not in "endstop":
                             _logger.debug( 'Calculating offsets.' )
                             final_x = np.around( (self.cp_coordinates['X'] + self.tool_offsets['X']) - self.tool_coordinates['X'], 3 )
                             final_y = np.around( (self.cp_coordinates['Y'] + self.tool_offsets['Y']) - self.tool_coordinates['Y'], 3 )
@@ -1811,17 +1814,17 @@ class CalibrateNozzles(QThread):
                             _return['MPP'] = self.mpp
                             _return['time'] = np.around(time.time() - self.startTime,1)
                             self.message_update.emit( 'Nozzle calibrated: offset coordinates X' + str(_return['X']) + ' Y' + str(_return['Y']) )
-                            self.parent().debugString += 'T' + str(tool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.\n'
-                            self.message_update.emit( 'T' + str(tool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.' )
-                            _logger.debug( 'T' + str(tool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + 's and ' + str(self.calibration_moves) + ' movements.' )
-                            _logger.info( 'Tool ' + str(tool) +' offsets are X' + str(_return['X']) + ' Y' + str(_return['Y']) )
+                            self.parent().debugString += 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.\n'
+                            self.message_update.emit( 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.' )
+                            _logger.debug( 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + 's and ' + str(self.calibration_moves) + ' movements.' )
+                            _logger.info( 'Tool ' + str(ctool) +' offsets are X' + str(_return['X']) + ' Y' + str(_return['Y']) )
                         else:
                             self.message_update.emit( 'CP auto-calibrated.' )
                         self.parent().printer.moveAbsolute( moveSpeed=13200 )
 
-                        if str(tool) not in "endstop":
+                        if str(ctool) not in "endstop":
                             _logger.debug( 'Generating G10 commands.' )
-                            self.parent().debugString += 'G10 P' + str(tool) + ' X' + string_final_x + ' Y' + string_final_y + '\n'
+                            self.parent().debugString += 'G10 P' + str(ctool) + ' X' + string_final_x + ' Y' + string_final_y + '\n'
                             x_tableitem = QTableWidgetItem(string_final_x)
                             x_tableitem.setBackground(QColor(100,255,100,255))
                             y_tableitem = QTableWidgetItem(string_final_y)
@@ -1830,7 +1833,7 @@ class CalibrateNozzles(QThread):
                             #self.parent().offsets_table.setItem(tool,1,y_tableitem)
 
                             self.result_update.emit({
-                                'tool': str(tool),
+                                'tool': str(ctool),
                                 'cycle': str(rep),
                                 'mpp': str(self.mpp),
                                 'X': string_final_x,
@@ -1874,16 +1877,16 @@ class CalibrateNozzles(QThread):
     def stop(self):
         self._running = False
         self.detection_on = False
-        try:
-            tempCoords = self.printer.getCoordinates()
-            if self.printer.isIdle():
-                self.parent().printer.unloadTools()
-                self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']), Y=str(tempCoords['Y']) )
-                timeoutChecker = 0
-                while self.parent().printer.getStatus() not in 'idle' and timeoutChecker <= _tamvTimeout:
-                    timeoutChecker += 1
-                    time.sleep(1)
-        except: None
+        # try:
+        #     tempCoords = self.printer.getCoordinates()
+        #     if self.printer.isIdle():
+        #         self.parent().printer.unloadTools()
+        #         self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']), Y=str(tempCoords['Y']) )
+        #         timeoutChecker = 0
+        #         while self.parent().printer.getStatus() not in 'idle' and timeoutChecker <= _tamvTimeout:
+        #             timeoutChecker += 1
+        #             time.sleep(1)
+        # except: None
         self.cap.release()
         self.exit()
 
@@ -2769,9 +2772,9 @@ class App(QMainWindow):
         if self.flag_CP_setup:
             try:
                 self.captureControlPoint()
-            except Exception as e2:
-                _logger.error( 'Unhandled exception in manual CP setup: ' + str(e2))
-                self.statusBar.showMessage( 'Error in CP manual capture. Check logs.' )
+            except Exception:
+                _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
+                self.statusBar.showMessage( 'Error 1 in manual capture. Check logs.' )
                 return
         else:
             # tool capture
@@ -2790,9 +2793,9 @@ class App(QMainWindow):
                 offsetString  = 'Tool ' + str(_active) + ' offsets:  X' + str(final_x) + ' Y' + str(final_y)
                 _logger.info(offsetString)
                 self.printer.setToolOffsets(tool=str(_active), X=str(final_x), Y=str(final_y) )
-            except Exception as e2:
-                self.statusBar.showMessage( 'Error in manual capture.' )
-                _logger.error( 'Error in manual capture: ' + str(e2))
+            except Exception:
+                self.statusBar.showMessage( 'Error 2 in manual capture. Check logs.' )
+                _logger.error( 'Capture Offset error 2: \n' + traceback.format_exc() )
             _logger.debug( 'Manual offset calculation ending..' )
             self.toolButtons[_active].setObjectName( 'completed' )
             self.toolButtons[_active].setStyle(self.toolButtons[_active].style())
@@ -2824,12 +2827,14 @@ class App(QMainWindow):
         except Exception as vs2:
             self.updateStatusbar( 'Error 0x03: cannot stop video.' )
             _logger.error( 'Cannot stop video capture: ' + str(vs2) )
+            _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
 
     def closeEvent(self, event):
         try:
             if( self.printer is not None ):
                 self.disconnectFromPrinter()
-        except Exception as ce1: None # no printer connected usually.
+        except Exception:
+            _logger.critical( 'Close event error: \n' + traceback.format_exc() )
         _logger.debug( 'Terminating video thread..' )
         self.video_thread.terminate()
         _logger.debug( 'Waiting for video thread to exit..' )
@@ -2936,13 +2941,22 @@ class App(QMainWindow):
                 self._connected_flag = True
                 self.num_tools = self.printer.getNumTools()
                 self.video_thread.numTools = self.num_tools
-                for i in range(self.num_tools):
+                self.printerObject = self.printer.getJSON()
+                # highest tool number storage
+                numTools = max( self.printerObject['tools'], key= lambda x:int(x['number']) )['number']
+                _logger.debug( 'Highest tool number is: ' + str(numTools) )
+                for tool in range(numTools+1):
+                    # check if current index exists in tool numbers from machine
                     # add tool buttons
-                    toolButton = QPushButton( 'T'+str(i))
-                    toolButton.setToolTip( 'Fetch T' + str(i) + ' to current machine position.' )
-                    toolButton.setObjectName( 'tool' )
+                    toolButton = QPushButton( 'T' + str(tool) )
+                    if( any( d.get('number', -1 ) == tool for d in self.printerObject['tools'] ) ):
+                        # tool exists
+                        toolButton.setToolTip( 'Fetch T' +  str(tool) + ' to current machine position.' )
+                        toolButton.setObjectName( 'tool' )
+                    else:
+                        # tool doesn't exist, hide button
+                        toolButton.setVisible(False)
                     self.toolButtons.append(toolButton)
-                # HBHBHBHBHBHB: need to add handling the tool buttons here.
                 _logger.debug( 'Tool data and interface created successfully.' )
         except Exception as conn1:
             self.updateStatusbar( 'Cannot connect to: ' + self.printerURL )
@@ -3419,9 +3433,9 @@ class App(QMainWindow):
         print( '+-------------------------------------------------------------------------------------------------------+' )
         print( '|   |                   X                             |                        Y                        |' )
         print( '| T |   Avg   |   Max   |   Min   |  StdDev |  Range  |   Avg   |   Max   |   Min   |  StdDev |  Range  |' )
-        for index in range(self.num_tools):
+        for myTool in self.printerObject['tools']:
             # create array of results for current tool
-            _rawCalibrationData = [line for line in self.calibrationResults if line['tool'] == str(index)]
+            _rawCalibrationData = [line for line in self.calibrationResults if line['tool'] == str(myTool['number'])]
             x_array = [float(line['X']) for line in _rawCalibrationData]
             y_array = [float(line['Y']) for line in _rawCalibrationData]
             mpp_value = np.average([float(line['mpp']) for line in _rawCalibrationData])
@@ -3438,7 +3452,7 @@ class App(QMainWindow):
             y_std = np.std(y_array)
             x_ran = x_max - x_min
             y_ran = y_max - y_min
-            print( '| {0:1.0f} '.format(index) 
+            print( '| {0:1.0f} '.format(int(myTool['number'])) 
                 + '| {0:7.3f} '.format(x_avg)
                 + '| {0:7.3f} '.format(x_max)
                 + '| {0:7.3f} '.format(x_min)
@@ -3521,8 +3535,10 @@ class App(QMainWindow):
         self.repaint()
         # End video threads and restart default thread
         # Clean up threads and detection
+        # Video thread
         self.video_thread.alignment = False
-        self.video_thread.detect_on = False
+        self.video_thread._running = False
+        self.video_thread.detection_on = False
         self.video_thread.display_crosshair = False
         self.detect_box.setChecked(False)
         self.detect_box.setVisible(True)
@@ -3532,20 +3548,27 @@ class App(QMainWindow):
         _logger.info( ' .. unloading tools..' )
         # Wait for printer to stop moving and unload tools
         _ret_error = 0
-        if self.printer.isIdle() is True and self.printer.isHomed() is True:
-            self.printer.flushMovementBuffer()
-            tempCoords = self.printer.getCoordinates()
-            self.printer.unloadTools()
-            # return carriage to control point position
-            _logger.info( ' .. restoring position..' )
-            if len(self.cp_coords) > 0:
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+        printerDisconnected = False
+        while( not printerDisconnected ):
+            if self.printer.isIdle() is True and self.printer.isHomed() is True:
+                self.printer.flushMovementBuffer()
+                tempCoords = self.printer.getCoordinates()
+                self.printer.unloadTools()
+                # return carriage to control point position
+                _logger.info( ' .. restoring position..' )
+                if len(self.cp_coords) > 0:
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                else:
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                printerDisconnected = True
             else:
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                _logger.debug( 'Sleeping to retry disconnect..' )
+                time.sleep(0.5)
+                continue
         # update status with disconnection state
         if _ret_error == 0:
             self.updateStatusbar( 'Disconnected.' )
@@ -3554,6 +3577,7 @@ class App(QMainWindow):
             _logger.info( ' .. connection terminated.' )
         else: 
             # handle unforeseen disconnection error (power loss?)
+            _logger.error('Disconnect: error communicating with machine.')
             self.statusBar.showMessage( 'Disconnect: error communicating with machine.' )
             self.statusBar.setStyleSheet(style_red)
         # Reinitialize printer object
@@ -3621,12 +3645,12 @@ class App(QMainWindow):
         self.detect_box.setVisible(False)
         self.cp_calibration_button.setDisabled(True)
         _logger.debug( 'Updating tool interface..' )
-        for i in range(self.num_tools):
-            current_tool = self.printer.getToolOffset(i)
-            x_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['X']))
-            y_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['Y']))
-            x_tableitem.setBackground(QColor(255,255,255,255))
-            y_tableitem.setBackground(QColor(255,255,255,255))
+        # for tool in self.printerObject['tools']:
+        #     current_tool = self.printer.getToolOffset( tool['number'] ) 
+        #     x_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['X']))
+        #     y_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['Y']))
+        #     x_tableitem.setBackground(QColor(255,255,255,255))
+        #     y_tableitem.setBackground(QColor(255,255,255,255))
             # self.offsets_table.setVerticalHeaderItem(i,QTableWidgetItem( 'T'+str(i)))
             # self.offsets_table.setItem(i,0,x_tableitem)
             # self.offsets_table.setItem(i,1,y_tableitem)
@@ -3776,7 +3800,7 @@ if __name__=='__main__':
     if( args['debug'] ):
         ch.setLevel(logging.DEBUG)
     else:
-        ch.setLevel(logging.INFO)
+        ch.setLevel(logging.DEBUG)
     # create a formatter and add it to the handlers
     file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
     #console_formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s',datefmt=dateformat)
@@ -3789,6 +3813,7 @@ if __name__=='__main__':
     _logger.addHandler(fh)
     _logger.addHandler(ch)
     _logger.debug( 'TAMV starting..' )
+    _logger.warning( 'This is an alpha release. Always use only when standing next to your machine and ready to hit EMERGENCY STOP.')
     app = QApplication(sys.argv)
     a = App()
     a.show()

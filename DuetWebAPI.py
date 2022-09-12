@@ -15,6 +15,7 @@
 # Requires Python3
 # from csv import excel_tab
 from http.client import HTTPConnection
+from json import tool
 import logging
 import requests
 from requests.adapters import HTTPAdapter
@@ -23,7 +24,7 @@ from urllib3.util.retry import Retry
 import json
 import sys
 import time
-import datetime
+import datetime as dt
 
 # invoke parent (TAMV) _logger
 _logger = logging.getLogger('TAMV.DuetWebAPI')
@@ -136,8 +137,10 @@ class DuetWebAPI:
         try:
             # check if its a Duet 2 board
             # Set up session using password
-            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            if( self._password is not "reprap" ):
+                _logger.debug('Starting DuetWebAPI session..')
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
             URL=(f'{self._base_url}'+'/rr_status?type=2')
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -157,6 +160,7 @@ class DuetWebAPI:
                     name = inputTool['name'],
                     offsets={'X': inputTool['offsets'][0], 'Y': inputTool['offsets'][1], 'Z':inputTool['offsets'][2]} )
                 self._tools.append( tempTool )
+                _logger.debug( 'Added tool: ' + str(tempTool.getJSON()) )
             
             # Check for firmware version
             try:
@@ -296,8 +300,10 @@ class DuetWebAPI:
         try:
             if (self.pt == 2):
                 # Start a connection
-                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if( self._password is not "reprap" ):
+                    _logger.debug('Starting DuetWebAPI session..')
+                    URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
                 # Wait for machine to be in idle state
                 while self.getStatus() not in "idle":
@@ -356,7 +362,7 @@ class DuetWebAPI:
     # Raises: 
     #   - FailedOffsetCapture: when cannot determine number of tools on machine
     def getToolOffset( self, toolIndex=0 ):
-        _logger.debug('Called getToolOffset')
+        _logger.debug('Called getToolOffset: ' + str(toolIndex) )
         try:
             if (self.pt == 3):
                 # Set up session using password
@@ -381,8 +387,10 @@ class DuetWebAPI:
                 return(ret)
             elif (self.pt == 2):
                 # Start a connection
-                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if( self._password is not "reprap" ):
+                    _logger.debug('Starting DuetWebAPI session..')
+                    URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
                 URL=(f'{self._base_url}'+'/rr_status?type=2')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -390,9 +398,17 @@ class DuetWebAPI:
                 ja=j['axisNames']
                 jt=j['tools']
                 ret=json.loads('{}')
-                to = jt[toolIndex]['offsets']
-                for i in range(0,len(to)):
-                    ret[ ja[i] ] = to[i]
+                for currentTool in jt:
+                    if( currentTool['number'] == int(toolIndex) ):
+                        ret['X'] = currentTool['offsets'][0]
+                        ret['Y'] = currentTool['offsets'][1]
+                        ret['Z'] = currentTool['offsets'][2]
+                        ret['U'] = currentTool['offsets'][3]
+                    else:
+                        continue
+                # to = jt[toolIndex]['offsets']
+                # for i in range(0,len(to)):
+                    # ret[ ja[i] ] = to[i]
                 _logger.debug('Tool offset for T' + str(toolIndex) +': ' + str(ret))
                 
                 # Send reply to clear buffer
@@ -430,8 +446,10 @@ class DuetWebAPI:
         try:
             if (self.pt == 2):
                 # Start a connection
-                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if( self._password is not "reprap" ):
+                    _logger.debug('Starting DuetWebAPI session..')
+                    URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
                 URL=(f'{self._base_url}'+'/rr_status')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -496,8 +514,10 @@ class DuetWebAPI:
         try:
             if (self.pt == 2):
                 # Start a connection
-                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if( self._password is not "reprap" ):
+                    _logger.debug('Starting DuetWebAPI session..')
+                    URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
                 # poll machine for coordinates
                 while self.getStatus() not in "idle":
@@ -570,7 +590,7 @@ class DuetWebAPI:
     # Raises: 
     #   - SetOffsetException: when failed to set offsets in controller
     def setToolOffsets( self, tool=None, X=None, Y=None, Z=None):
-        _logger.debug('Called setToolOffsets')
+        _logger.debug('Called setToolOffsets: ' + str(tool) )
         try:
             # Check for invalid tool index, raise exception if needed.
             if( tool is None ):
@@ -624,8 +644,10 @@ class DuetWebAPI:
                 # Duet RRF v2
 
                 # Start a connection
-                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+                if( self._password is not "reprap" ):
+                    _logger.debug('Starting DuetWebAPI session..')
+                    URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                    r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
                 URL=(f'{self._base_url}'+'/rr_status?type=2')
                 r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -679,7 +701,7 @@ class DuetWebAPI:
     # Raises: 
     #   - ToolTimeoutException: machine took too long to load the tool
     def loadTool( self, toolIndex = 0 ):
-        _logger.debug('Called loadTool')
+        _logger.debug('Called loadTool: ' + str(toolIndex) ) 
         # variable to hold current tool loading "virtual" timer
         toolchangeTimer = 0
         try:
@@ -949,11 +971,13 @@ class DuetWebAPI:
     #   - gCodeBatch: send an array of gcode strings to your controller and execute them sequentially 
 
     def gCode(self,command):
-        _logger.debug('gCode called')
+        _logger.debug('gCode called: ' + command )
         if (self.pt == 2):
             # Start a connection
-            URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
-            r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
+            if( self._password is not "reprap" ):
+                _logger.debug('Starting DuetWebAPI session..')
+                URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
+                r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
             URL=(f'{self._base_url}'+'/rr_gcode?gcode='+command)
             r = self.session.get(URL, timeout=(self._requestTimeout,self._responseTimeout) )
@@ -982,6 +1006,7 @@ class DuetWebAPI:
     def gCodeBatch(self,commands):
         if( self.pt == 2 ): 
             # Start a connection
+            _logger.debug('Starting DuetWebAPI session..')
             URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
         else:
@@ -1021,6 +1046,7 @@ class DuetWebAPI:
     def getFilenamed(self,filename):
         if (self.pt == 2):
             # Start a connection
+            _logger.debug('Starting DuetWebAPI session..')
             URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
         
@@ -1043,6 +1069,7 @@ class DuetWebAPI:
     def checkDuet2RRF3(self):
         if (self.pt == 2):
             # Start a connection
+            _logger.debug('Starting DuetWebAPI session..')
             URL=(f'{self._base_url}'+'/rr_connect?password=' + self._password )
             r = self.session.get( URL, timeout=(self._requestTimeout,self._responseTimeout) )
 
@@ -1116,6 +1143,7 @@ class DuetWebAPI:
         if (self.pt == 2):
             if not self._rrf2:
                 #RRF 3 on a Duet Ethernet/Wifi board, apply buffer checking
+                _logger.debug('Starting DuetWebAPI session..')
                 sessionURL = ( f'{self._base_url}'+'/rr_connect?password=' + self._password )
                 r = self.session.get(sessionURL, timeout=(self._requestTimeout,self._responseTimeout) )
                 rawdata = r.json()
