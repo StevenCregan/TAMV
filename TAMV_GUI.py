@@ -1938,19 +1938,19 @@ class App(QMainWindow):
                 padding: 0px;\
             }\
             QPushButton#plus:enabled {\
-                font: 25px;\
+                font: 20px;\
                 padding: 0px;\
                 background-color: #eeeeee;\
                 color: #000000;\
             }\
             QPushButton#plus:enabled:hover {\
-                font: 25px;\
+                font: 20px;\
                 padding: 0px;\
                 background-color: green;\
                 color: #000000;\
             }\
             QPushButton#plus:enabled:pressed {\
-                font: 25px;\
+                font: 20px;\
                 padding: 0px;\
                 background-color: #FF0000;\
                 color: #222222;\
@@ -2301,7 +2301,7 @@ class App(QMainWindow):
 ### ### ## setup button properties
         # Set font size
         self.panel_font = QFont()
-        self.panel_font.setPixelSize(40)
+        self.panel_font.setPixelSize(35)
         # set button sizing
         self.button_width = 50
         self.button_height = 50
@@ -2313,12 +2313,15 @@ class App(QMainWindow):
         self.button_1 = QPushButton( '1' )
         self.button_1.setFixedSize(self.button_width,self.button_height)
         self.button_1.setMaximumHeight( self.button_height )
+        self.button_1.setFont( self.panel_font )
         self.button_01 = QPushButton( '0.1' )
         self.button_01.setFixedSize(self.button_width,self.button_height)
         self.button_01.setMaximumHeight( self.button_height )
+        self.button_01.setFont( self.panel_font )
         self.button_001 = QPushButton( '0.01' )
         self.button_001.setFixedSize(self.button_width,self.button_height)
         self.button_001.setMaximumHeight( self.button_height )
+        self.button_001.setFont( self.panel_font )
         self.incrementButtonGroup = QButtonGroup()
         self.incrementButtonGroup.addButton(self.button_1)
         self.incrementButtonGroup.addButton(self.button_01)
@@ -2332,9 +2335,11 @@ class App(QMainWindow):
         self.button_x_left = QPushButton( '-', objectName='plus' )
         self.button_x_left.setFixedSize(self.button_width,self.button_height)
         self.button_x_left.setMaximumHeight( self.button_height )
+        self.button_x_left.setFont( self.panel_font )
         self.button_x_right = QPushButton( '+', objectName='plus' )
         self.button_x_right.setFixedSize(self.button_width,self.button_height)
         self.button_x_right.setMaximumHeight( self.button_height )
+        self.button_x_right.setFont( self.panel_font )
         self.button_x_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_left' ))
         self.button_x_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_right' ))
         self.x_label = QLabel( 'X' )
@@ -2344,9 +2349,11 @@ class App(QMainWindow):
         self.button_y_left = QPushButton( '-', objectName='plus' )
         self.button_y_left.setFixedSize(self.button_width,self.button_height)
         self.button_y_left.setMaximumHeight( self.button_height )
+        self.button_y_left.setFont( self.panel_font )
         self.button_y_right = QPushButton( '+', objectName='plus' )
         self.button_y_right.setFixedSize(self.button_width,self.button_height)
         self.button_y_right.setMaximumHeight( self.button_height )
+        self.button_y_right.setFont( self.panel_font )
         self.button_y_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_left' ))
         self.button_y_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_right' ))
         self.y_label = QLabel( 'Y' )
