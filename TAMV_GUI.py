@@ -2880,6 +2880,8 @@ class App(QMainWindow):
                         self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
                         self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
                         self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                else:
+                    break
                 printerDisconnected = True
             else:
                 _logger.debug( 'Sleeping to retry disconnect..' )
