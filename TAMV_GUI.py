@@ -97,164 +97,6 @@ _tamvTimeout = 300
 _moveSpeed = 6000
 
 ##############################################################################################################################################################
-# Control point dialog box
-class CPDialog(QDialog):
-    def __init__(self,
-                parent=None,
-                title='Set Control Point',
-                summary='<b>Instructions:</b><br>Jog until control point is centered in the window.<br>Click OK to save and return to main window.',
-                disabled = False):
-        super(CPDialog,self).__init__(parent=parent)
-        self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
-        self.setWindowTitle(title)
-        QBtn = QDialogButtonBox.Ok | QDialogButtonBox.Cancel
-        self.buttonBox = QDialogButtonBox(QBtn)
-        self.buttonBox.accepted.connect(self.accept)
-        self.buttonBox.rejected.connect(self.reject)
-
-        self.layout = QGridLayout()
-        self.layout.setHorizontalSpacing(1)
-        self.layout.setVerticalSpacing(2)
-        self.layout.setContentsMargins(1,1,1,1)
-
-        # add information panel
-        self.cp_info = QLabel(summary+'\n' )
-        self.cp_info.setWordWrap(True)
-        self.cp_info.setContentsMargins(10,10,10,1)
-        
-        # create all the buttons
-        self.createJogPanelButtons()
-
-        # GUI management
-        # Set up items on dialog grid
-        # Summary text
-        self.layout.addWidget(self.cp_info,0,0,1,1, Qt.AlignCenter | Qt.AlignVCenter)
-        # Jog Panel buttons
-        self.layout.addWidget(self.panel_box, 1,0,1,1, Qt.AlignCenter | Qt.AlignVCenter)
-        # OK/Cancel buttons
-        self.layout.addWidget(self.buttonBox,2,0,1,-1, Qt.AlignCenter | Qt.AlignVCenter)
-        # apply layout
-        self.setLayout(self.layout)
-
-    def jogPanelButtonClicked(self, buttonName):
-        increment_amount = 1
-        # fetch current increment value
-        if self.button_1.isChecked():
-            increment_amount = 1
-        elif self.button_01.isChecked():
-            increment_amount = 0.1
-        elif self.button_001.isChecked():
-            increment_amount = 0.01
-        # Call corresponding axis gcode command
-        if buttonName == 'x_left':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, X=str(-1*increment_amount) )
-        elif buttonName == 'x_right':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, X=str(increment_amount) )
-        elif buttonName == 'y_left':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, Y=str(-1*increment_amount) )
-        elif buttonName == 'y_right':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, Y=str(increment_amount) )
-        elif buttonName == 'z_down':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, Z=str(-1*increment_amount) )
-        elif buttonName == 'z_up':
-            self.parent().printer.moveRelative( moveSpeed=_moveSpeed, Z=str(increment_amount) )
-        return
-
-    def createJogPanelButtons(self):
-        # add jogging grid
-        self.buttons_layout = QGridLayout()
-        self.buttons_layout.setSpacing(1)
-
-        self.panel_box = QGroupBox( 'Jog Panel' )
-        self.panel_box.setLayout(self.buttons_layout)
-
-        # get default system font object
-        self.panel_font = QFont()
-        self.panel_font.setPixelSize(40)
-        # set button sizing
-        self.button_width = 50
-        self.button_height = 50
-        if self.parent().small_display:
-            self.button_height = 60
-            self.button_width = 60
-        # Increment size buttons
-        self.button_1 = QPushButton( '1' )
-        self.button_1.setFixedSize(self.button_width,self.button_height)
-        self.button_01 = QPushButton( '0.1' )
-        self.button_01.setFixedSize(self.button_width,self.button_height)
-        self.button_001 = QPushButton( '0.01' )
-        self.button_001.setFixedSize(self.button_width,self.button_height)
-
-        # Create increment buttons group to enable radio-button behavior
-        self.incrementButtonGroup = QButtonGroup()
-        self.incrementButtonGroup.addButton(self.button_1)
-        self.incrementButtonGroup.addButton(self.button_01)
-        self.incrementButtonGroup.addButton(self.button_001)
-        self.incrementButtonGroup.setExclusive(True)
-        self.button_1.setCheckable(True)
-        self.button_01.setCheckable(True)
-        self.button_001.setCheckable(True)
-        # default selection is the "1" button
-        self.button_1.setChecked(True)
-        # X buttons
-        self.button_x_left = QPushButton( '-', objectName='plus' )
-        self.button_x_left.setFixedSize(self.button_width,self.button_height)
-        self.button_x_right = QPushButton( '+', objectName='plus' )
-        self.button_x_right.setFixedSize(self.button_width,self.button_height)
-        # X button actions
-        self.button_x_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_left' ))
-        self.button_x_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_right' ))
-
-        # Y buttons
-        self.button_y_left = QPushButton( '-', objectName='plus' )
-        self.button_y_left.setFixedSize(self.button_width,self.button_height)
-        self.button_y_right = QPushButton( '+', objectName='plus' )
-        self.button_y_right.setFixedSize(self.button_width,self.button_height)
-        # Y button actions
-        self.button_y_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_left' ))
-        self.button_y_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_right' ))
-
-        # Z buttons
-        self.button_z_down = QPushButton( '-', objectName='plus' )
-        self.button_z_down.setFont(self.panel_font)
-        self.button_z_down.setFixedSize(self.button_width,self.button_height)
-        self.button_z_up = QPushButton( '+', objectName='plus' )
-        self.button_z_up.setFont(self.panel_font)
-        self.button_z_up.setFixedSize(self.button_width,self.button_height)
-        # Z button actions
-        self.button_z_down.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_down' ))
-        self.button_z_up.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_up' ))
-
-        # create on-screen labels
-        self.x_label = QLabel( 'X' )
-        self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.y_label = QLabel( 'Y' )
-        self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.z_label = QLabel( 'Z' )
-        self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-
-        # add all labels to button panel layout
-        self.buttons_layout.addWidget(self.x_label,1,0)
-        self.buttons_layout.addWidget(self.y_label,2,0)
-        self.buttons_layout.addWidget(self.z_label,3,0)
-        # add increment buttons
-        self.buttons_layout.addWidget(self.button_001,0,0)
-        self.buttons_layout.addWidget(self.button_01,0,1)
-        self.buttons_layout.addWidget(self.button_1,0,2)
-        # add X movement buttons
-        self.buttons_layout.addWidget(self.button_x_left,1,1)
-        self.buttons_layout.addWidget(self.button_x_right,1,2)
-        # add Y movement buttons
-        self.buttons_layout.addWidget(self.button_y_left,2,1)
-        self.buttons_layout.addWidget(self.button_y_right,2,2)
-        # add Z movement buttons
-        self.buttons_layout.addWidget(self.button_z_down,3,1)
-        self.buttons_layout.addWidget(self.button_z_up,3,2)
-
-    def setSummaryText(self, message):
-        self.cp_info.setText(message)
-
-##############################################################################################################################################################
 # Debug window dialog box
 class DebugDialog(QDialog):
     def __init__(self,parent=None, message='' ):
@@ -1981,56 +1823,49 @@ class CalibrateNozzles(QThread):
 
 ##############################################################################################################################################################
 ##############################################################################################################################################################
-# Main class definition
+##### GUI application class
 class App(QMainWindow):
+    ##### - Class attributes
     cp_coords = {}
     numTools = 0
     current_frame = np.ndarray
     mutex = QMutex()
     debugString = ''
     calibrationResults = []
+    # standby image
+    standbyImage = None
+    # settings.json options variable
+    options = {}
+    # state flag for defining a new connection
+    newPrinter = False
+    # Set state flags to initial values
+    flag_CP_setup = False
+    # main printer class
+    printer = None
 
+    ##### - Initialize class
     def __init__(self, parent=None):
+        # output greeting to log
+        _logger.info( 'Launching application.. ' )
         super().__init__()
+        
+        ##### -- setup class attributes
+        self.standbyImage = QPixmap('./standby.jpg')
+        self.printer = None
+        
+        ##### -- setup window properties
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
         self.setWindowIcon(QIcon( 'jubilee.png' ))
-        # load standby image
-        self.standbyImage = QPixmap('./standby.jpg')
-        # settings.json options variable
-        self.options = {}
-        # state flag for defining a new connection
-        self.newPrinter = False
-
-        global display_width, display_height
-        screen = QDesktopWidget().availableGeometry()
-        self.small_display = False
-        # Log greeting
-        _logger.info( 'Launching application.. ' )
-        # HANDLE DIFFERENT DISPLAY SIZES
-        # 800x600 display - fullscreen app
-        if int(screen.width()) >= 800 and int(screen.height()) >= 550 and int(screen.height() < 600):
-            self.small_display = True
-            _logger.info( '800x600 desktop detected' )
-            display_width = 512
-            display_height = 384
-            self.setWindowFlag(Qt.FramelessWindowHint)
-            self.showFullScreen()
-            self.setGeometry(0,0,700,500)
-            app_screen = self.frameGeometry()
-        # 848x480 display - fullscreen app
-        elif int(screen.width()) >= 800 and int(screen.height()) < 550:
-            self.small_display = True
-            _logger.info( '848x480 desktop detected' )
-            display_width = 448
-            display_height = 336
-            self.setWindowFlag(Qt.FramelessWindowHint)
-            self.showFullScreen()
-            self.setGeometry(0,0,700,400)
-            app_screen = self.frameGeometry()
-        # larger displays - normal window
-        else:
-            if debugging_small_display:
+        
+        ##### -- handle screen mode based on resolution
+        if( True ):
+            global display_width, display_height
+            screen = QDesktopWidget().availableGeometry()
+            self.small_display = False
+            # HANDLE DIFFERENT DISPLAY SIZES
+            # 800x600 display - fullscreen app
+            if int(screen.width()) >= 800 and int(screen.height()) >= 550 and int(screen.height() < 600):
                 self.small_display = True
                 _logger.info( '800x600 desktop detected' )
                 display_width = 512
@@ -2039,26 +1874,44 @@ class App(QMainWindow):
                 self.showFullScreen()
                 self.setGeometry(0,0,700,500)
                 app_screen = self.frameGeometry()
-            else:
-                self.small_display = False
-                display_width = 640
-                display_height = 480
-                self.setGeometry(QStyle.alignedRect(Qt.LeftToRight,Qt.AlignHCenter,QSize(800,600),screen))
+            # 848x480 display - fullscreen app
+            elif int(screen.width()) >= 800 and int(screen.height()) < 550:
+                self.small_display = True
+                _logger.info( '848x480 desktop detected' )
+                display_width = 448
+                display_height = 336
+                self.setWindowFlag(Qt.FramelessWindowHint)
+                self.showFullScreen()
+                self.setGeometry(0,0,700,400)
                 app_screen = self.frameGeometry()
-                app_screen.moveCenter(screen.center())
-                self.move(app_screen.topLeft())
+            # larger displays - normal window
+            else:
+                if debugging_small_display:
+                    self.small_display = True
+                    _logger.info( '800x600 desktop detected' )
+                    display_width = 512
+                    display_height = 384
+                    self.setWindowFlag(Qt.FramelessWindowHint)
+                    self.showFullScreen()
+                    self.setGeometry(0,0,700,500)
+                    app_screen = self.frameGeometry()
+                else:
+                    self.small_display = False
+                    display_width = 640
+                    display_height = 480
+                    self.setGeometry(QStyle.alignedRect(Qt.LeftToRight,Qt.AlignHCenter,QSize(800,600),screen))
+                    app_screen = self.frameGeometry()
+                    app_screen.moveCenter(screen.center())
+                    self.move(app_screen.topLeft())
         
-        # Call style sheet handler
+        ##### -- create stylehseets
         self.createStyles()
 
-        # Set state flags to initial values
-        self.flag_CP_setup = False
-
-        # LOAD USER SAVED PARAMETERS OR CREATE DEFAULTS
+        ##### -- load user parameters
         self.loadUserParameters()
 
-        # GUI ELEMENTS DEFINITION
-        # Menubar
+        ##### -- create GUI elements
+        ##### --- Menubar
         if not self.small_display:
             self._createActions()
             self._createMenuBar()
@@ -2066,44 +1919,27 @@ class App(QMainWindow):
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
         
-        # create the label that holds the image
-        self.image_label = OverlayLabel()
-        self.image_label.setFixedSize( display_width, display_height )
-        self.image_label.setScaledContents(True)
-        pixmap = QPixmap( display_width, display_height )
-        self.image_label.setPixmap(pixmap)
-        
-        # create a status bar
+        ##### ---- Statusbar
         self.statusBar = QStatusBar()
         self.statusBar.showMessage( 'Loading up video feed and libraries..',5000)
         self.setStatusBar( self.statusBar )
-        
         # CP location on statusbar
         self.cp_label = QLabel( '<b>CP:</b> <i>undef</i>' )
         self.statusBar.addPermanentWidget(self.cp_label)
         self.cp_label.setStyleSheet(style_red)
-        
         # Connection status on statusbar
         self.connection_status = QLabel( 'Disconnected' )
         self.connection_status.setStyleSheet(style_red)
         self.statusBar.addPermanentWidget(self.connection_status)
-        # BUTTONS
-        # main interface elements
+
+        ##### ---- Main interface
         self.createGUIElements()
+
+        ##### -- Layout GUI elements
         # create a grid box layout
         grid = QGridLayout()
         grid.setSpacing(3)
         
-        #HBHBHB: TESTING CP AUTOCALIBRATE
-        self.cp_calibration_button = QPushButton( 'Automated capture' )
-        self.cp_calibration_button.setFixedWidth(170)
-        self.cp_calibration_button.clicked.connect(self.calibrate_CP)
-        self.cp_calibration_button.setDisabled(True)
-        
-        self.createJogPanelButtons()
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
-        # grid.setColumnStretch(0,1.2)
         ################################################### ELEMENT POSITIONING ###################################################
         # row, col, rowSpan, colSpan, alignment
         ###################################################
@@ -2116,48 +1952,48 @@ class App(QMainWindow):
         ###################################################
         # First container
         # connect button
-        grid.addWidget( self.connection_button,     1,  1,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.connect_button,     1,  1,  1,  1,  Qt.AlignLeft )
         # detect checkbox
-        grid.addWidget( self.detect_box,            1,  2,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.detectOn_checkbox,            1,  2,  1,  1,  Qt.AlignLeft )
         # xray checkbox
-        grid.addWidget( self.xray_box,              1,  3,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.xray_checkbox,              1,  3,  1,  1,  Qt.AlignLeft )
         # loose detection checkbox
-        grid.addWidget( self.loose_box,             1,  4,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.relaxedDetection_checkbox,             1,  4,  1,  1,  Qt.AlignLeft )
         # Alternative algorithm checkbox
-        grid.addWidget( self.algorithm_box,         1,  6,  1,  -1,  Qt.AlignLeft )
+        grid.addWidget( self.altAlgorithm_checkbox,         1,  6,  1,  -1,  Qt.AlignLeft )
         # disconnect button
-        grid.addWidget( self.disconnection_button,  1,  7,  1,  1, Qt.AlignCenter )
+        grid.addWidget( self.disconnect_button,  1,  7,  1,  1, Qt.AlignCenter )
         
         ###################################################
         # Second container
         # main image viewer
         grid.addWidget( self.image_label,           2,  1,  5,  6,  Qt.AlignLeft )
         # Jog Panel
-        grid.addWidget(self.panel_box,              2,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget(self.mainSidebar_panel,              2,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # tool selection table
-        grid.addWidget( self.tool_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget( self.toolButtons_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # instruction box
-        grid.addWidget( self.instructions_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget( self.instructionsPanel_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # conditional exit button
         if self.small_display:
             grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         # debug window button
-        grid.addWidget( self.debug_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+        grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         
         ###################################################
         # Third container
         # set control point button
-        grid.addWidget( self.cp_button,             7,  1,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.controlPoint_button,             7,  1,  1,  1,  Qt.AlignLeft )
         # start calibration button
         grid.addWidget( self.calibration_button,    7,  2,  1,  1,  Qt.AlignLeft )
         # cycle repeat label
-        grid.addWidget( self.repeat_label,          7,  3,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.cycles_label,          7,  3,  1,  1,  Qt.AlignLeft )
         # cycle repeat selector
-        grid.addWidget( self.repeatSpinBox,         7,  4,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.cycles_spinbox,         7,  4,  1,  1,  Qt.AlignLeft )
         # manual alignment button
-        grid.addWidget( self.manual_button,         7,  6,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.manualAlignment_button,         7,  6,  1,  1,  Qt.AlignLeft )
         # CP auto calibration button
-        grid.addWidget( self.cp_calibration_button, 7,  7,  1,  1,  Qt.AlignRight )
+        grid.addWidget( self.autoCalibrateEndstop_button, 7,  7,  1,  1,  Qt.AlignRight )
         ################################################# END ELEMENT POSITIONING #################################################
 
         # set the grid layout as the widgets layout
@@ -2172,108 +2008,208 @@ class App(QMainWindow):
         print()
 
     def createGUIElements(self):
-        # Connect
-        self.connection_button = QPushButton( 'Connect..' )
-        self.connection_button.setToolTip( 'Connect to a Duet machine..' )
-        self.connection_button.clicked.connect(self.connectToPrinter)
-        self.connection_button.setFixedWidth(170)
-        # Disconnect
-        self.disconnection_button = QPushButton( 'STOP / DISCONNECT' )
-        self.disconnection_button.setToolTip( 'End current operation,\nunload tools, and return carriage to CP\nthen disconnect.' )
-        self.disconnection_button.clicked.connect(self.disconnectFromPrinter)
-        self.disconnection_button.setFixedWidth(170)
-        self.disconnection_button.setObjectName( 'terminate' )
-        self.disconnection_button.setDisabled(True)
-        # Control point
-        self.cp_button = QPushButton( 'Set Control Point..' )
-        self.cp_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
-        self.cp_button.clicked.connect(self.setupCP)
-        self.cp_button.setFixedWidth(170)
-        #self.cp_button.setStyleSheet(style_disabled)
-        self.cp_button.setDisabled(True)
-        # Calibration
+        ##### ----- image_label (camera display)
+        self.image_label = OverlayLabel()
+        self.image_label.setFixedSize( display_width, display_height )
+        self.image_label.setScaledContents(True)
+        pixmap = QPixmap( display_width, display_height )
+        self.image_label.setPixmap(pixmap)
+        ##### ----- connect button
+        self.connect_button = QPushButton( 'Connect..' )
+        self.connect_button.setToolTip( 'Connect to a Duet machine..' )
+        self.connect_button.clicked.connect(self.connectToPrinter)
+        self.connect_button.setFixedWidth(170)
+        ##### ----- disconnect button
+        self.disconnect_button = QPushButton( 'STOP / DISCONNECT' )
+        self.disconnect_button.setToolTip( 'End current operation,\nunload tools, and return carriage to CP\nthen disconnect.' )
+        self.disconnect_button.clicked.connect(self.disconnectFromPrinter)
+        self.disconnect_button.setFixedWidth(170)
+        self.disconnect_button.setObjectName( 'terminate' )
+        self.disconnect_button.setDisabled(True)
+        ##### ----- controlPoint button
+        self.controlPoint_button = QPushButton( 'Set Control Point..' )
+        self.controlPoint_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
+        self.controlPoint_button.clicked.connect(self.setupCP)
+        self.controlPoint_button.setFixedWidth(170)
+        self.controlPoint_button.setDisabled(True)
+        ##### ----- calibration button
         self.calibration_button = QPushButton( 'Start Tool Alignment' )
         self.calibration_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
         self.calibration_button.clicked.connect(self.runCalibration)
-        #self.calibration_button.setStyleSheet(style_disabled)
         self.calibration_button.setDisabled(True)
         self.calibration_button.setFixedWidth(170)
-        # Debug Info
-        self.debug_button = QPushButton( 'Debug Information' )
-        self.debug_button.setToolTip( 'Display current debug info for troubleshooting\nand to display final G10 commands' )
-        self.debug_button.clicked.connect(self.displayDebug)
-        self.debug_button.setFixedWidth(170)
-        self.debug_button.setObjectName( 'debug' )
-        # Exit
+        ##### ----- debugInfo button
+        self.debugInfo_button = QPushButton( 'Debug Information' )
+        self.debugInfo_button.setToolTip( 'Display current debug info for troubleshooting\nand to display final G10 commands' )
+        self.debugInfo_button.clicked.connect(self.displayDebug)
+        self.debugInfo_button.setFixedWidth(170)
+        self.debugInfo_button.setObjectName( 'debug' )
+        ##### ----- exit button
         self.exit_button = QPushButton( 'Quit' )
         self.exit_button.setToolTip( 'Unload tools, disconnect, and quit TAMV.' )
         self.exit_button.clicked.connect(self.close)
         self.exit_button.setFixedWidth(170)
-        
-        # OTHER ELEMENTS
-        # Repeat spinbox
-        self.repeat_label = QLabel( 'Cycles: ' )
-        self.repeat_label.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
-        self.repeatSpinBox = QSpinBox()
-        self.repeatSpinBox.setValue(1)
-        self.repeatSpinBox.setMinimum(1)
-        self.repeatSpinBox.setSingleStep(1)
-        self.repeatSpinBox.setDisabled(True)
-        # Manual alignment button
-        self.manual_button = QPushButton( 'Capture' )
-        self.manual_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
-        self.manual_button.clicked.connect(self.captureOffset)
-        self.manual_button.setDisabled(True)
-        self.manual_button.setFixedWidth(170)
-        # Tool buttons table
-        self.tool_boxLayout = QHBoxLayout()
-        self.tool_boxLayout.setSpacing(1)
-        self.tool_box = QGroupBox()
-        self.tool_boxLayout.setContentsMargins(0,0,0,0)
-        self.tool_box.setLayout(self.tool_boxLayout)
-        self.tool_box.setVisible(False)
+        ##### ----- autoCalibrateEndstop button
+        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture' )
+        self.autoCalibrateEndstop_button.setFixedWidth(170)
+        self.autoCalibrateEndstop_button.clicked.connect(self.calibrate_CP)
+        self.autoCalibrateEndstop_button.setDisabled(True)
+        ##### ----- manualAlignment button
+        self.manualAlignment_button = QPushButton( 'Capture' )
+        self.manualAlignment_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
+        self.manualAlignment_button.clicked.connect(self.captureOffset)
+        self.manualAlignment_button.setDisabled(True)
+        self.manualAlignment_button.setFixedWidth(170)
+        ##### ----- cycles spinbox
+        self.cycles_label = QLabel( 'Cycles: ' )
+        self.cycles_label.setAlignment(Qt.AlignRight|Qt.AlignVCenter)
+        self.cycles_spinbox = QSpinBox()
+        self.cycles_spinbox.setValue(1)
+        self.cycles_spinbox.setMinimum(1)
+        self.cycles_spinbox.setSingleStep(1)
+        self.cycles_spinbox.setDisabled(True)
+        ##### ----- toolButtons groupbox
+        self.toolBox_boxlayout = QHBoxLayout()
+        self.toolBox_boxlayout.setSpacing(1)
+        self.toolButtons_box = QGroupBox()
+        self.toolBox_boxlayout.setContentsMargins(0,0,0,0)
+        self.toolButtons_box.setLayout(self.toolBox_boxlayout)
+        self.toolButtons_box.setVisible(False)
         self.toolButtons = []
-        # Xray checkbox
-        self.xray_box = QCheckBox( 'X-ray' )
-        self.xray_box.setChecked(False)
-        self.xray_box.stateChanged.connect(self.toggle_xray)
-        self.xray_box.setDisabled(True)
-        self.xray_box.setVisible(False)
-        # Loose checkbox
-        self.loose_box = QCheckBox( 'Relaxed' )
-        self.loose_box.setChecked(False)
-        self.loose_box.stateChanged.connect(self.toggle_loose)
-        self.loose_box.setDisabled(True)
-        self.loose_box.setVisible(False)
-        # Switch algorithm checkbox
-        self.algorithm_box = QCheckBox( 'bTriangle' )
-        self.algorithm_box.setChecked(False)
-        self.algorithm_box.stateChanged.connect(self.toggle_algorithm)
-        self.algorithm_box.setDisabled(True)
-        self.algorithm_box.setVisible(False)
-
-        # Detection checkbox
-        self.detect_box = QCheckBox( 'Detect ON' )
-        self.detect_box.setChecked(False)
-        self.detect_box.stateChanged.connect(self.toggle_detect)
-        self.detect_box.setDisabled(True)
-
-        # Instruction box
-        self.instructions_layout = QGridLayout()
-        self.instructions_layout.setSpacing(0)
-        self.instructions_layout.setContentsMargins(0,10,0,0)
-        self.instructions_layout.setColumnMinimumWidth(0,180)
-        self.instructions_layout.setColumnStretch(0,0)
-
-        self.instructions_box = QGroupBox( 'Instructions' )
-        self.instructions_box.setObjectName( 'instructions_box' )
-        self.instructions_box.setContentsMargins(0,0,0,0)
-        self.instructions_box.setLayout(self.instructions_layout)
-
+        ##### ----- xray checkbox
+        self.xray_checkbox = QCheckBox( 'X-ray' )
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.stateChanged.connect(self.toggle_xray)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setVisible(False)
+        ##### ----- relaxedDetection checkbox
+        self.relaxedDetection_checkbox = QCheckBox( 'Relaxed' )
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.stateChanged.connect(self.toggle_loose)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setVisible(False)
+        ##### ----- altAlgorithm checkbox
+        self.altAlgorithm_checkbox = QCheckBox( 'bTriangle' )
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.stateChanged.connect(self.toggle_algorithm)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setVisible(False)
+        ##### ----- detectOn checkbox
+        self.detectOn_checkbox = QCheckBox( 'Detect ON' )
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.stateChanged.connect(self.toggle_detect)
+        self.detectOn_checkbox.setDisabled(True)
+        ##### ----- instructionsPanel box
+        self.instructionsPanel_layout = QGridLayout()
+        self.instructionsPanel_layout.setSpacing(0)
+        self.instructionsPanel_layout.setContentsMargins(0,10,0,0)
+        self.instructionsPanel_layout.setColumnMinimumWidth(0,180)
+        self.instructionsPanel_layout.setColumnStretch(0,0)
+        self.instructionsPanel_box = QGroupBox( 'Instructions' )
+        self.instructionsPanel_box.setObjectName( 'instructionsPanel_box' )
+        self.instructionsPanel_box.setContentsMargins(0,0,0,0)
+        self.instructionsPanel_box.setLayout(self.instructionsPanel_layout)
         self.instructions_text = QLabel( 'Welcome to TAMV.<br>Please connect to your printer.',objectName="instructions_text")
         self.instructions_text.setContentsMargins(12,5,12,5)
         self.instructions_text.setWordWrap(True)
-        self.instructions_layout.addWidget(self.instructions_text, 0, 0)
+        self.instructionsPanel_layout.addWidget(self.instructions_text, 0, 0)
+
+        ##### ----- mainSidebar panel
+        self.mainSidebar_panel = QTabWidget()
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
+        ##### ------ jogPanel tab
+        self.jogPanel_tab = QGroupBox( 'Jog Panel' )
+        self.jogPanel_tab.layout = QGridLayout()
+        self.buttons_layout = QGridLayout()
+        self.buttons_layout.setSpacing(1)
+        self.jogPanel_tab.setLayout(self.buttons_layout)
+        self.mainSidebar_panel.addTab( self.jogPanel_tab, "Jog Panel" )
+        ##### ------- setup button properties
+        # Set font size
+        self.panel_font = QFont()
+        self.panel_font.setPixelSize(40)
+        # set button sizing
+        self.button_width = 50
+        self.button_height = 50
+        if self.small_display:
+            self.button_height = 50
+            self.button_width = 50
+        # Increment size buttons
+        self.button_1 = QPushButton( '1' )
+        self.button_1.setFixedSize(self.button_width,self.button_height)
+        self.button_01 = QPushButton( '0.1' )
+        self.button_01.setFixedSize(self.button_width,self.button_height)
+        self.button_001 = QPushButton( '0.01' )
+        self.button_001.setFixedSize(self.button_width,self.button_height)
+        # Create increment buttons group to enable radio-button behavior
+        self.incrementButtonGroup = QButtonGroup()
+        self.incrementButtonGroup.addButton(self.button_1)
+        self.incrementButtonGroup.addButton(self.button_01)
+        self.incrementButtonGroup.addButton(self.button_001)
+        self.incrementButtonGroup.setExclusive(True)
+        self.button_1.setCheckable(True)
+        self.button_01.setCheckable(True)
+        self.button_001.setCheckable(True)
+        # default selection is the "1" button
+        self.button_1.setChecked(True)
+        # X buttons
+        self.button_x_left = QPushButton( '-', objectName='plus' )
+        self.button_x_left.setFixedSize(self.button_width,self.button_height)
+        self.button_x_right = QPushButton( '+', objectName='plus' )
+        self.button_x_right.setFixedSize(self.button_width,self.button_height)
+        # X button actions
+        self.button_x_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_left' ))
+        self.button_x_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_right' ))
+        # Y buttons
+        self.button_y_left = QPushButton( '-', objectName='plus' )
+        self.button_y_left.setFixedSize(self.button_width,self.button_height)
+        self.button_y_right = QPushButton( '+', objectName='plus' )
+        self.button_y_right.setFixedSize(self.button_width,self.button_height)
+        # Y button actions
+        self.button_y_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_left' ))
+        self.button_y_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_right' ))
+        # Z buttons
+        self.button_z_down = QPushButton( '-', objectName='plus' )
+        self.button_z_down.setFont(self.panel_font)
+        self.button_z_down.setFixedSize(self.button_width,self.button_height)
+        self.button_z_up = QPushButton( '+', objectName='plus' )
+        self.button_z_up.setFont(self.panel_font)
+        self.button_z_up.setFixedSize(self.button_width,self.button_height)
+        # Z button actions
+        self.button_z_down.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_down' ))
+        self.button_z_up.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_up' ))
+        # create on-screen labels
+        self.x_label = QLabel( 'X' )
+        self.x_label.setObjectName( 'labelPlus' )
+        self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
+        self.y_label = QLabel( 'Y' )
+        self.y_label.setObjectName( 'labelPlus' )
+        self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
+        self.z_label = QLabel( 'Z' )
+        self.z_label.setObjectName( 'labelPlus' )
+        self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
+        # add all labels to button panel layout
+        self.buttons_layout.addWidget(self.x_label,1,0)
+        self.buttons_layout.addWidget(self.y_label,2,0)
+        self.buttons_layout.addWidget(self.z_label,3,0)
+        # add increment buttons
+        self.buttons_layout.addWidget(self.button_001,0,0)
+        self.buttons_layout.addWidget(self.button_01,0,1)
+        self.buttons_layout.addWidget(self.button_1,0,2)
+        # add X movement buttons
+        self.buttons_layout.addWidget(self.button_x_left,1,1)
+        self.buttons_layout.addWidget(self.button_x_right,1,2)
+        # add Y movement buttons
+        self.buttons_layout.addWidget(self.button_y_left,2,1)
+        self.buttons_layout.addWidget(self.button_y_right,2,2)
+        # add Z movement buttons
+        self.buttons_layout.addWidget(self.button_z_down,3,1)
+        self.buttons_layout.addWidget(self.button_z_up,3,2)
+
+        ##### ------ toolInfo tab
+        self.toolInfo_tab =QWidget()
+        self.mainSidebar_panel.addTab( self.toolInfo_tab, "Tools")
 
     def createStyles(self):
         # SET UP STYLESHEETS FOR GUI ELEMENTS
@@ -2412,113 +2348,6 @@ class App(QMainWindow):
             self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(increment_amount) )
         return
 
-    def createJogPanelButtons(self):
-        
-        # add jogging grid
-        self.buttons_layout = QGridLayout()
-        self.buttons_layout.setSpacing(1)
-        # create tab layout
-        self.panel_box = QTabWidget()
-        # Tab 1: jog panel
-        self.jog_tab = QGroupBox( 'Jog Panel' )
-        self.jog_tab.layout = QGridLayout()
-        self.jog_tab.setLayout(self.buttons_layout)
-        # Tab 2: tool offsets display
-        self.tool_tab =QWidget() 
-
-        # Add tabs to tab widget
-        self.panel_box.addTab( self.jog_tab, "Jog Panel" )
-        self.panel_box.addTab( self.tool_tab, "Tools")
-        
-        #self.panel_box = QGroupBox( 'Jog Panel' )
-        #self.panel_box.setLayout(self.buttons_layout)
-
-        # get default system font object
-        self.panel_font = QFont()
-        self.panel_font.setPixelSize(40)
-        # set button sizing
-        self.button_width = 50
-        self.button_height = 50
-        if self.small_display:
-            self.button_height = 50
-            self.button_width = 50
-        # Increment size buttons
-        self.button_1 = QPushButton( '1' )
-        self.button_1.setFixedSize(self.button_width,self.button_height)
-        self.button_01 = QPushButton( '0.1' )
-        self.button_01.setFixedSize(self.button_width,self.button_height)
-        self.button_001 = QPushButton( '0.01' )
-        self.button_001.setFixedSize(self.button_width,self.button_height)
-
-        # Create increment buttons group to enable radio-button behavior
-        self.incrementButtonGroup = QButtonGroup()
-        self.incrementButtonGroup.addButton(self.button_1)
-        self.incrementButtonGroup.addButton(self.button_01)
-        self.incrementButtonGroup.addButton(self.button_001)
-        self.incrementButtonGroup.setExclusive(True)
-        self.button_1.setCheckable(True)
-        self.button_01.setCheckable(True)
-        self.button_001.setCheckable(True)
-        # default selection is the "1" button
-        self.button_1.setChecked(True)
-        # X buttons
-        self.button_x_left = QPushButton( '-', objectName='plus' )
-        self.button_x_left.setFixedSize(self.button_width,self.button_height)
-        self.button_x_right = QPushButton( '+', objectName='plus' )
-        self.button_x_right.setFixedSize(self.button_width,self.button_height)
-        # X button actions
-        self.button_x_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_left' ))
-        self.button_x_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'x_right' ))
-
-        # Y buttons
-        self.button_y_left = QPushButton( '-', objectName='plus' )
-        self.button_y_left.setFixedSize(self.button_width,self.button_height)
-        self.button_y_right = QPushButton( '+', objectName='plus' )
-        self.button_y_right.setFixedSize(self.button_width,self.button_height)
-        # Y button actions
-        self.button_y_left.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_left' ))
-        self.button_y_right.clicked.connect(lambda: self.jogPanelButtonClicked( 'y_right' ))
-
-        # Z buttons
-        self.button_z_down = QPushButton( '-', objectName='plus' )
-        self.button_z_down.setFont(self.panel_font)
-        self.button_z_down.setFixedSize(self.button_width,self.button_height)
-        self.button_z_up = QPushButton( '+', objectName='plus' )
-        self.button_z_up.setFont(self.panel_font)
-        self.button_z_up.setFixedSize(self.button_width,self.button_height)
-        # Z button actions
-        self.button_z_down.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_down' ))
-        self.button_z_up.clicked.connect(lambda: self.jogPanelButtonClicked( 'z_up' ))
-
-        # create on-screen labels
-        self.x_label = QLabel( 'X' )
-        self.x_label.setObjectName( 'labelPlus' )
-        self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.y_label = QLabel( 'Y' )
-        self.y_label.setObjectName( 'labelPlus' )
-        self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-        self.z_label = QLabel( 'Z' )
-        self.z_label.setObjectName( 'labelPlus' )
-        self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
-
-        # add all labels to button panel layout
-        self.buttons_layout.addWidget(self.x_label,1,0)
-        self.buttons_layout.addWidget(self.y_label,2,0)
-        self.buttons_layout.addWidget(self.z_label,3,0)
-        # add increment buttons
-        self.buttons_layout.addWidget(self.button_001,0,0)
-        self.buttons_layout.addWidget(self.button_01,0,1)
-        self.buttons_layout.addWidget(self.button_1,0,2)
-        # add X movement buttons
-        self.buttons_layout.addWidget(self.button_x_left,1,1)
-        self.buttons_layout.addWidget(self.button_x_right,1,2)
-        # add Y movement buttons
-        self.buttons_layout.addWidget(self.button_y_left,2,1)
-        self.buttons_layout.addWidget(self.button_y_right,2,2)
-        # add Z movement buttons
-        self.buttons_layout.addWidget(self.button_z_down,3,1)
-        self.buttons_layout.addWidget(self.button_z_up,3,2)
-
     def calibrate_CP(self):
         _logger.info( 'Starting automated CP capture..' )
         self.video_thread.align_endstop = True
@@ -2531,19 +2360,19 @@ class App(QMainWindow):
         self.video_thread.detection_on = not self.video_thread.detection_on
         self.crosshair_alignment = not self.crosshair_alignment
         if self.video_thread.detection_on:
-            self.xray_box.setDisabled(False)
-            self.xray_box.setVisible(True)
-            self.loose_box.setDisabled(False)
-            self.loose_box.setVisible(True)
-            self.algorithm_box.setDisabled(False)
-            self.algorithm_box.setVisible(True)
+            self.xray_checkbox.setDisabled(False)
+            self.xray_checkbox.setVisible(True)
+            self.relaxedDetection_checkbox.setDisabled(False)
+            self.relaxedDetection_checkbox.setVisible(True)
+            self.altAlgorithm_checkbox.setDisabled(False)
+            self.altAlgorithm_checkbox.setVisible(True)
         else:
-            self.xray_box.setDisabled(True)
-            self.xray_box.setVisible(False)
-            self.loose_box.setDisabled(True)
-            self.loose_box.setVisible(False)
-            self.algorithm_box.setDisabled(True)
-            self.algorithm_box.setVisible(False)
+            self.xray_checkbox.setDisabled(True)
+            self.xray_checkbox.setVisible(False)
+            self.relaxedDetection_checkbox.setDisabled(True)
+            self.relaxedDetection_checkbox.setVisible(False)
+            self.altAlgorithm_checkbox.setDisabled(True)
+            self.altAlgorithm_checkbox.setVisible(False)
             self.updateStatusbar( 'Detection: OFF' )
 
     def cleanPrinterURL(self, inputString='http://localhost' ):
@@ -2850,26 +2679,26 @@ class App(QMainWindow):
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Waiting to connect..' )
         self.updateStatusbar( 'Please enter machine IP address or name prefixed with http(s)://' )
-        self.connection_button.setDisabled(True)
-        self.disconnection_button.setDisabled(True)
+        self.connect_button.setDisabled(True)
+        self.disconnect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
-        self.cp_button.setDisabled(True)
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
+        self.controlPoint_button.setDisabled(True)
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Connecting..' )
         self.connection_status.setStyleSheet(style_orange)
         self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
         self.cp_label.setStyleSheet(style_orange)
-        self.repeatSpinBox.setDisabled(True)
-        self.xray_box.setDisabled(True)
-        self.xray_box.setChecked(False)
-        self.xray_box.setVisible(False)
-        self.loose_box.setDisabled(True)
-        self.loose_box.setChecked(False)
-        self.loose_box.setVisible(False)
-        self.algorithm_box.setDisabled(True)
-        self.algorithm_box.setChecked(False)
-        self.algorithm_box.setVisible(False)
+        self.cycles_spinbox.setDisabled(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(False)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(False)
         self.repaint()
         try:
             # check if printerURL has already been defined (user reconnecting)
@@ -2973,22 +2802,22 @@ class App(QMainWindow):
             else: 
                 button.setChecked(False)
             button.clicked.connect(self.callTool)
-            self.tool_boxLayout.addWidget(button)
-        self.tool_box.setVisible(True)
+            self.toolBox_boxlayout.addWidget(button)
+        self.toolButtons_box.setVisible(True)
         # Connection succeeded, update GUI first
         self.updateStatusbar( 'Connected to a Duet V'+str(self.printer.getPrinterType()) )
-        self.connection_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
+        self.connect_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
         self.statusBar.showMessage( 'Connected to printer at ' + self.printerURL, 5000)
         self.connection_status.setText( 'Connected.' )
         self.image_label.setText( 'Set your Control Point to continue.' )
         # enable/disable buttons
-        self.connection_button.setDisabled(True)
+        self.connect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
-        self.cp_calibration_button.setDisabled(True)
-        self.disconnection_button.setDisabled(False)
-        self.cp_button.setDisabled(False)
-        self.panel_box.setDisabled(False)
-        self.panel_box.setCurrentIndex(0)
+        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.disconnect_button.setDisabled(False)
+        self.controlPoint_button.setDisabled(False)
+        self.mainSidebar_panel.setDisabled(False)
+        self.mainSidebar_panel.setCurrentIndex(0)
         
         # Issue #25: fullscreen mode menu error: can't disable items
         if not self.small_display:
@@ -3007,7 +2836,7 @@ class App(QMainWindow):
         if( self.checkMachine() is False ):
             # Machine is not homed, don't do anything and return
             return
-        self.manual_button.setDisabled(False)
+        self.manualAlignment_button.setDisabled(False)
         # handle scenario where machine is busy and user tries to select a tool.
         if not self.printer.isIdle():
             self.updateStatusbar( 'Machine is not idle, cannot select tool.' )
@@ -3049,7 +2878,7 @@ class App(QMainWindow):
                 self.video_thread.alignment = False
                 # Update GUI for unloading carriage
                 self.calibration_button.setDisabled(False)
-                self.cp_button.setDisabled(False)
+                self.controlPoint_button.setDisabled(False)
                 self.updateMessagebar( 'Ready.' )
                 self.updateStatusbar( 'Ready.' )
                 self.displayToolLoaded(tool=-1)
@@ -3084,11 +2913,11 @@ class App(QMainWindow):
                         self.settings_dialog.reject()
                 except: None
                 # update GUI
-                self.cp_button.setDisabled(True)
-                self.panel_box.setDisabled(False)
-                self.panel_box.setCurrentIndex(0)
+                self.controlPoint_button.setDisabled(True)
+                self.mainSidebar_panel.setDisabled(False)
+                self.mainSidebar_panel.setCurrentIndex(0)
                 self.calibration_button.setDisabled(True)
-                self.repeatSpinBox.setDisabled(True)
+                self.cycles_spinbox.setDisabled(True)
                 self.displayToolLoaded(tool=int(sender.text()[1:]))
             else:
                 self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
@@ -3127,51 +2956,51 @@ class App(QMainWindow):
         return True
 
     def resetConnectInterface(self):
-        self.connection_button.setDisabled(False)
-        self.disconnection_button.setDisabled(True)
+        self.connect_button.setDisabled(False)
+        self.disconnect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
-        self.cp_button.setDisabled(True)
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
+        self.controlPoint_button.setDisabled(True)
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Disconnected' )
         self.connection_status.setStyleSheet(style_red)
         self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
         self.cp_label.setStyleSheet(style_red)
-        self.repeatSpinBox.setDisabled(True)
+        self.cycles_spinbox.setDisabled(True)
         if not self.small_display:
             self.analysisMenu.setDisabled(True)
-        self.detect_box.setChecked(False)
-        self.detect_box.setDisabled(True)
-        self.xray_box.setDisabled(True)
-        self.xray_box.setChecked(False)
-        self.xray_box.setVisible(False)
-        self.loose_box.setDisabled(True)
-        self.loose_box.setChecked(False)
-        self.loose_box.setVisible(False)
-        self.algorithm_box.setDisabled(True)
-        self.algorithm_box.setChecked(False)
-        self.algorithm_box.setVisible(False)
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.setDisabled(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(False)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(False)
         self.video_thread.detection_on = False
         self.video_thread.loose = False
         self.video_thread.xray = False
         self.video_thread.alignment = False
-        self.cp_calibration_button.setDisabled(True)
+        self.autoCalibrateEndstop_button.setDisabled(True)
         self.crosshair = False
         self.statusBar.setStyleSheet(style_default)
         self.instructions_text.setText("Please enter your printer address and click \"Connect..\" to start.")
-        index = self.tool_boxLayout.count()-1
+        index = self.toolBox_boxlayout.count()-1
         while index >= 0:
-            curWidget = self.tool_boxLayout.itemAt(index).widget()
+            curWidget = self.toolBox_boxlayout.itemAt(index).widget()
             curWidget.setParent(None)
             index -= 1
-        self.tool_box.setVisible(False)
+        self.toolButtons_box.setVisible(False)
         self.toolButtons = []
         self.repaint()
 
     def disableButtonsCP(self):
         for item in self.toolButtons:
             item.setDisabled(True)
-        self.cp_button.setDisabled(True)
+        self.controlPoint_button.setDisabled(True)
 
     def setupCP(self):
         # Check if machine is ready for movement
@@ -3196,9 +3025,9 @@ class App(QMainWindow):
         #dlg = CPDialog(parent=self)
         #HBHBHB 123
         # Enable automated button
-        self.cp_calibration_button.setDisabled(False)
+        self.autoCalibrateEndstop_button.setDisabled(False)
         # Enable capture button
-        self.manual_button.setDisabled(False)
+        self.manualAlignment_button.setDisabled(False)
         # Update instructions box
         self.instructions_text.setText( 'To auto-align, click \"Automated Capture\". Otherwise, use jog panel to center on crosshair and then click Capture.' )
         # wait for user to conclude with state flag
@@ -3224,34 +3053,34 @@ class App(QMainWindow):
     def readyToCalibrate(self):
         for item in self.toolButtons:
             item.setDisabled(False)
-        self.manual_button.setDisabled(True)
+        self.manualAlignment_button.setDisabled(True)
         self.statusBar.showMessage( 'Control Point coordinates saved.',3000)
         self.image_label.setText( 'Control Point set. Click \"Start Tool Alignment\" to calibrate..' )
-        self.cp_button.setText( 'Set new control point.. ' )
+        self.controlPoint_button.setText( 'Set new control point.. ' )
         #self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
         self.cp_label.setStyleSheet(style_green)
-        self.detect_box.setChecked(False)
-        self.detect_box.setDisabled(False)
-        self.detect_box.setVisible(True)
-        self.xray_box.setDisabled(True)
-        self.xray_box.setChecked(False)
-        self.xray_box.setVisible(False)
-        self.loose_box.setDisabled(True)
-        self.loose_box.setChecked(False)
-        self.loose_box.setVisible(False)
-        self.algorithm_box.setDisabled(True)
-        self.algorithm_box.setChecked(False)
-        self.algorithm_box.setVisible(False)
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.setDisabled(False)
+        self.detectOn_checkbox.setVisible(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(False)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(False)
         self.video_thread.detection_on = False
         self.video_thread.loose = False
         self.video_thread.xray = False
         self.video_thread.alignment = False
         self.calibration_button.setDisabled(False)
-        self.cp_button.setDisabled(False)
-        self.cp_calibration_button.setDisabled(True)
+        self.controlPoint_button.setDisabled(False)
+        self.autoCalibrateEndstop_button.setDisabled(True)
 
-        self.tool_box.setVisible(True)
-        self.repeatSpinBox.setDisabled(False)
+        self.toolButtons_box.setVisible(True)
+        self.cycles_spinbox.setDisabled(False)
 
         if len(self.calibrationResults) > 1:
             # Issue #25: fullscreen mode menu error: can't disable items
@@ -3513,25 +3342,25 @@ class App(QMainWindow):
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Restoring machine to initial state..' )
         self.updateStatusbar( 'Restoring machine and disconnecting...' )
-        self.connection_button.setText( 'Pending..' )
-        self.connection_button.setDisabled(True)
-        self.disconnection_button.setDisabled(True)
+        self.connect_button.setText( 'Pending..' )
+        self.connect_button.setDisabled(True)
+        self.disconnect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
-        self.cp_button.setDisabled(True)
-        self.cp_button.setText( 'Pending..' )
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
+        self.controlPoint_button.setDisabled(True)
+        self.controlPoint_button.setText( 'Pending..' )
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Disconnecting..' )
         self.connection_status.setStyleSheet(style_orange)
         self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
         self.cp_label.setStyleSheet(style_orange)
-        self.repeatSpinBox.setDisabled(True)
-        self.xray_box.setDisabled(True)
-        self.xray_box.setChecked(False)
-        self.loose_box.setDisabled(True)
-        self.algorithm_box.setDisabled(True)
-        self.tool_box.setVisible(False)
-        self.cp_calibration_button.setDisabled(True)
+        self.cycles_spinbox.setDisabled(True)
+        self.xray_checkbox.setDisabled(True)
+        self.xray_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setDisabled(True)
+        self.toolButtons_box.setVisible(False)
+        self.autoCalibrateEndstop_button.setDisabled(True)
         self.repaint()
         # End video threads and restart default thread
         # Clean up threads and detection
@@ -3540,8 +3369,8 @@ class App(QMainWindow):
         self.video_thread._running = False
         self.video_thread.detection_on = False
         self.video_thread.display_crosshair = False
-        self.detect_box.setChecked(False)
-        self.detect_box.setVisible(True)
+        self.detectOn_checkbox.setChecked(False)
+        self.detectOn_checkbox.setVisible(True)
 
         # update status 
         self.updateStatusbar( 'Unloading tools and disconnecting from machine..' )
@@ -3586,23 +3415,23 @@ class App(QMainWindow):
         # Tools unloaded, reset GUI
         self.instructions_text.setText( 'Welcome to TAMV. Enter your printer address and click \"Connect..\" to start.' )
         self.image_label.setText( 'Welcome to TAMV. Enter your printer address and click \"Connect..\" to start.' )
-        self.connection_button.setText( 'Connect..' )
-        self.connection_button.setDisabled(False)
-        self.disconnection_button.setDisabled(True)
+        self.connect_button.setText( 'Connect..' )
+        self.connect_button.setDisabled(False)
+        self.disconnect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
-        self.cp_button.setDisabled(True)
-        self.cp_button.setText( 'Set Control Point..' )
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
-        self.manual_button.setDisabled(True)
+        self.controlPoint_button.setDisabled(True)
+        self.controlPoint_button.setText( 'Set Control Point..' )
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
+        self.manualAlignment_button.setDisabled(True)
         self.connection_status.setText( 'Disconnected.' )
         self.connection_status.setStyleSheet(style_red)
         self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
         self.cp_label.setStyleSheet(style_red)
-        self.repeatSpinBox.setDisabled(True)
-        self.xray_box.setDisabled(True)
-        self.loose_box.setDisabled(True)
-        self.algorithm_box.setDisabled(True)
+        self.cycles_spinbox.setDisabled(True)
+        self.xray_checkbox.setDisabled(True)
+        self.relaxedDetection_checkbox.setDisabled(True)
+        self.altAlgorithm_checkbox.setDisabled(True)
         self.resetConnectInterface()
 
     def runCalibration(self):
@@ -3628,22 +3457,22 @@ class App(QMainWindow):
                 self.settings_dialog.reject()
         except: None
         # update GUI
-        self.cp_button.setDisabled(True)
-        self.panel_box.setDisabled(True)
-        self.panel_box.setCurrentIndex(0)
+        self.controlPoint_button.setDisabled(True)
+        self.mainSidebar_panel.setDisabled(True)
+        self.mainSidebar_panel.setCurrentIndex(0)
         self.calibration_button.setDisabled(True)
-        self.xray_box.setDisabled(False)
-        self.xray_box.setChecked(False)
-        self.xray_box.setVisible(True)
-        self.loose_box.setDisabled(False)
-        self.loose_box.setChecked(False)
-        self.loose_box.setVisible(True)
-        self.algorithm_box.setDisabled(False)
-        self.algorithm_box.setChecked(False)
-        self.algorithm_box.setVisible(True)
-        self.tool_box.setVisible(False)
-        self.detect_box.setVisible(False)
-        self.cp_calibration_button.setDisabled(True)
+        self.xray_checkbox.setDisabled(False)
+        self.xray_checkbox.setChecked(False)
+        self.xray_checkbox.setVisible(True)
+        self.relaxedDetection_checkbox.setDisabled(False)
+        self.relaxedDetection_checkbox.setChecked(False)
+        self.relaxedDetection_checkbox.setVisible(True)
+        self.altAlgorithm_checkbox.setDisabled(False)
+        self.altAlgorithm_checkbox.setChecked(False)
+        self.altAlgorithm_checkbox.setVisible(True)
+        self.toolButtons_box.setVisible(False)
+        self.detectOn_checkbox.setVisible(False)
+        self.autoCalibrateEndstop_button.setDisabled(True)
         _logger.debug( 'Updating tool interface..' )
         # for tool in self.printerObject['tools']:
         #     current_tool = self.printer.getToolOffset( tool['number'] ) 
@@ -3655,8 +3484,8 @@ class App(QMainWindow):
             # self.offsets_table.setItem(i,0,x_tableitem)
             # self.offsets_table.setItem(i,1,y_tableitem)
         # get number of repeat cycles
-        self.repeatSpinBox.setDisabled(True)
-        self.cycles = self.repeatSpinBox.value()
+        self.cycles_spinbox.setDisabled(True)
+        self.cycles = self.cycles_spinbox.value()
 
         # create the Nozzle detection capture thread
         _logger.debug( 'Launching calibration threads..' )
@@ -3777,43 +3606,43 @@ class App(QMainWindow):
 
 ##############################################################################################################################################################
 ##############################################################################################################################################################
-# Main program
+##### Main program
 if __name__=='__main__':
-    # Setup dependency debugging levels
+    ##### - Setup global debugging flags for imports
     os.putenv("QT_LOGGING_RULES","qt5ct.debug=false")
     matplotlib.use('Qt5Agg',force=True)
 
+    ##### - Setup argmument parser
     # Setup CLI argument parsers
     parser = argparse.ArgumentParser(description='Program to allign multiple tools on Duet/klipper based printers, using machine vision.', allow_abbrev=False)
     parser.add_argument('-d','--debug',action='store_true',help='Enable debug output to terminal')
     # Execute argument parser
     args=vars(parser.parse_args())
     
-    # Create main application _logger
+    ##### - Setup logging
     _logger = logging.getLogger("TAMV")
     _logger.setLevel(logging.DEBUG)
-    # create file handler with logs even debug messages
+    ##### -- file handler logging
+    file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
     fh = logging.FileHandler( 'TAMV.log' )
     fh.setLevel(logging.DEBUG)
-    # create console handler with a higher log level than the file _logger
+    fh.setFormatter(file_formatter)
+    _logger.addHandler(fh)
+    ##### -- console handler logging
+    console_formatter = logging.Formatter(fmt='%(levelname)-9s: %(message)s' )
     ch = logging.StreamHandler()
     if( args['debug'] ):
         ch.setLevel(logging.DEBUG)
     else:
-        ch.setLevel(logging.DEBUG)
-    # create a formatter and add it to the handlers
-    file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
-    #console_formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s',datefmt=dateformat)
-    dateformat = '%H:%M:%S'
-    #console_formatter = logging.Formatter(fmt='%(name)-15s: %(levelname)-9s %(funcName)-20s (%(lineno)d): %(message)s',datefmt=dateformat )
-    console_formatter = logging.Formatter(fmt='%(levelname)-9s: %(message)s' )
-    fh.setFormatter(file_formatter)
+        ch.setLevel(logging.INFO)
     ch.setFormatter(console_formatter)
-    # add the handlers to the _logger
-    _logger.addHandler(fh)
     _logger.addHandler(ch)
+    
+    ##### -- log startup messages
     _logger.debug( 'TAMV starting..' )
     _logger.warning( 'This is an alpha release. Always use only when standing next to your machine and ready to hit EMERGENCY STOP.')
+    
+    ##### -- start GUI application
     app = QApplication(sys.argv)
     a = App()
     a.show()
