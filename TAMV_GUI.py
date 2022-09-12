@@ -2126,9 +2126,10 @@ class App(QMainWindow):
 ### #  create GUI elements
 ### ## Menubar
         if not self.small_display:
+            self.menubar = self.menuBar()
 ### ### File menu
             fileMenu = QMenu( '&File', self)
-            self.menuBar.addMenu(fileMenu)
+            self.menubar.addMenu(fileMenu)
 ### ### # Settings..
             self.settingsAction = QAction(self)
             self.settingsAction.setText( '&Settings..' )
@@ -2153,7 +2154,7 @@ class App(QMainWindow):
             fileMenu.addAction(self.quitAction)
 ### ### Analysis menu
             self.analysisMenu = QMenu( '&Analyze',self)
-            self.menuBar.addMenu(self.analysisMenu)
+            self.menubar.addMenu(self.analysisMenu)
             self.analysisMenu.setDisabled(True)
 ### ### # Graph calibration data..
             self.graphAction = QAction(self)
