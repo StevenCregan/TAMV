@@ -101,7 +101,7 @@ def init():
 
 def probePlate():
     prt.resetEndstops()
-    # HBHBHB: TODO - insert code to handle 0.7mm offset in RRF here!
+    #HBHBHBHB: TODO - insert code to handle 0.7mm offset in RRF here!
     commandBuffer = []
     # Unload tools
     prt.unloadTools()

@@ -200,7 +200,7 @@ class SettingsDialog(QDialog):
                 camera_description = str(camera['video_src']) + ': ' + str(int(camera['display_width'])) + 'x' + str(int(camera['display_height']))
             self.camera_combo.addItem(camera_description)
         
-        #HBHBHBHB: need to pass actual video source string object from parameter helper function!!!
+        #HBHBHBHB: TODO need to pass actual video source string object from parameter helper function!!!
         #self.camera_combo.currentIndexChanged.connect(self.parent().video_thread.changeVideoSrc)
         
         # Get cameras button
@@ -670,8 +670,7 @@ class SettingsDialog(QDialog):
         self.hue_label.setText(str(parameter))
 
     def getCameras(self):
-        #HBHBHB: Clean up the handling of this function to the saved list of objects!
-        #           to be applied when you save the settings!!
+        #HBHBHBHB: TODO handle multiple camera profiles
         # checks the first 6 indexes.
         i = 6
         index = 0
@@ -738,7 +737,6 @@ class SettingsDialog(QDialog):
             self.settingsObject['printer'][0]['default'] = 1
         elif( len(self.settingsObject['printer']) == 0 ):
             # All profiles have been cleared. Add a dummy template
-            #HBHBHBHB
             self.settingsObject['printer'] = [
                 { 
                 'address': 'http://localhost',
@@ -1145,9 +1143,7 @@ class CalibrateNozzles(QThread):
                             self._running = False
                         # Update status bar
                         self.status_update.emit( 'Calibration complete: Resetting machine.' )
-                        # HBHBHB
                         # Update debug window with results
-                        # self.parent().debugString += '\nCalibration output:\n'
                         self.parent().displayStandby()
                         self.parent().printer.unloadTools()
                         # check kinematics rotation
@@ -1450,9 +1446,6 @@ class CalibrateNozzles(QThread):
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                 continue
-                # HBHBHBHBHB
-                # # capture tool location in machine space before processing
-                # toolCoordinates = self.parent().printer.getCoordinates()
             # capture first clean frame for display
             cleanFrame = self.frame
             # apply endstop detection algorithm
@@ -1687,7 +1680,7 @@ class CalibrateNozzles(QThread):
                         if str(ctool) not in "endstop":
                             self.tool_offsets = self.parent().printer.getToolOffset(ctool)
                         else:
-                            #HBHBHB: TODO ADD PROBE OFFSETS TO THIS CALCULATION
+                            # Set offsets to zero for endstop automated capture
                             self.tool_offsets = {
                                 'X' : 0,
                                 'Y' : 0,
@@ -1700,7 +1693,6 @@ class CalibrateNozzles(QThread):
                             string_final_x = "{:.3f}".format(final_x)
                             string_final_y = "{:.3f}".format(final_y)
                             # Save offset to output variable
-                            # HBHBHBHB
                             _return = {}
                             _return['X'] = final_x
                             _return['Y'] = final_y
@@ -1837,7 +1829,7 @@ class CalibrateNozzles(QThread):
     def changeVideoSrc(self, newSrc=-1):
         self.cap.release()
         
-        #HBHBHBH this should be a signal
+        #HBHBHBHB this should be a signal
         self.parent()._videoSrc = newSrc
         # Start Video feed
         self.cap.open(newSrc)
@@ -2067,10 +2059,10 @@ class App(QMainWindow):
                 background-color: #27ae60;\
             }\
             QToolTip, QLabel > QToolTip {\
-                color: black !important;\
+                color: blue !important;\
             }\
             '
-        ) # HBHBHB fix QToolTip color
+        ) #HBHBHBHB fix QToolTip color
 ### #  load user parameters
         try:
             with open( './config/settings.json','r' ) as inputfile:
@@ -2590,7 +2582,7 @@ class App(QMainWindow):
         self.connection_dialog = ConnectionDialog(parent=self)
         self.connection_dialog.connect_printer.connect( self.updatePrinterURL )
         self.connection_dialog.new_printer.connect( self.createNewConnection )
-        ok2 = self.connection_dialog.exec()
+        ok = self.connection_dialog.exec()
         if( self.newPrinter ):
             self.newPrinter = False
             self.settings_dialog = SettingsDialog(parent=self, addPrinter=True)
