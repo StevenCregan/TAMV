@@ -72,10 +72,13 @@ _moveSpeed = 6000
 ##############################################################################################################################################################
 # Debug window dialog box
 class DebugDialog(QDialog):
-    def __init__(self,parent=None, message='' ):
+    def __init__(self,parent=None, message='', geometry=None ):
         super(DebugDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'Debug Information' )
+        self.setWindowModality( Qt.ApplicationModal )
+        if( geometry is not None ):
+            self.restoreGeometry(geometry)
         # Set layout details
         self.layout = QGridLayout()
         self.layout.setSpacing(3)
@@ -87,15 +90,15 @@ class DebugDialog(QDialog):
         self.layout.addWidget(self.textarea,0,0)
         # apply layout
         self.setLayout(self.layout)
-        temp_text = ''
-        try:
-            if self.parent().video_thread.isRunning():
-                temp_text += 'Video thread running\n'
-        except Exception:
-            _logger.error( 'Debug window error: \n' + traceback.format_exc() )
         if len(message) > 0:
-            temp_text += '\nCalibration Debug Messages:\n' + message
+            temp_text = '\nCalibration Debug Messages:\n' + message
+        else:
+            temp_text = message
         self.textarea.setText(temp_text)
+    def closeEvent(self, event):
+        self.parent().debugGeometry = self.saveGeometry()
+        super( DebugDialog, self ).closeEvent(event)
+
 
 ##############################################################################################################################################################
 # Configuration settings dialog box
@@ -103,12 +106,15 @@ class SettingsDialog(QDialog):
     # add signal to trigger saving settings to file
     update_settings = pyqtSignal(object)
 
-    def __init__(self,parent=None, addPrinter=False ):
+    def __init__(self,parent=None, addPrinter=False, geometry=None ):
         # Set up settings window
         super(SettingsDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV Configuration Settings' )
         
+        # Restore geometry if available
+        if( geometry is not None ):
+            self.restoreGeometry(geometry)
         # Fetch settings object from parent
         self.settingsObject = copy.deepcopy(self.parent().options)
         self.originalSettingsObject = copy.deepcopy(self.parent().options)
@@ -786,7 +792,8 @@ class SettingsDialog(QDialog):
     def closeEvent(self, event):
         self.parent().updateStatusbar( 'Changes to settings discarded.' )
         self.settingsObject = self.originalSettingsObject
-        self.reject()
+        self.parent().settingsGeometry = self.saveGeometry()
+        super( SettingsDialog, self ).closeEvent(event)
 
 ##############################################################################################################################################################
 # Connection dialog box
@@ -801,6 +808,7 @@ class ConnectionDialog(QDialog):
         super(ConnectionDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'Connect to a machine' )
+        self.setWindowModality( Qt.ApplicationModal )
         
         # Fetch settings object from parent
         self.csettingsObject = copy.deepcopy(self.parent().options)
@@ -1905,7 +1913,6 @@ class App(QMainWindow):
         except:
             _logger.critical( 'Cannot load driver definitions: ' + traceback.format_exc() )
             raise SystemExit('Cannot load driver definitions.')
-
 ### #  setup window properties
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
@@ -2469,7 +2476,6 @@ class App(QMainWindow):
 ### ### # toolInfo tab
         self.toolInfo_tab =QWidget()
         self.mainSidebar_panel.addTab( self.toolInfo_tab, "Tools")
-
 ### # Layout GUI elements
         # create a grid box layout
         grid = QGridLayout()
@@ -2483,7 +2489,6 @@ class App(QMainWindow):
         grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 7+2, 1 )
         grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 0 )
         grid.addItem( QSpacerItem( 1, 1, QSizePolicy.Preferred, QSizePolicy.Expanding  ), 1, 7+2 )
-
         ###################################################
         # First container
         # connect button
@@ -2533,7 +2538,7 @@ class App(QMainWindow):
 
         # set the grid layout as the widgets layout
         self.centralWidget.setLayout(grid)
-        
+
 ### # Start video thread
         self.startVideo()
         # flag to draw circle
@@ -2585,7 +2590,7 @@ class App(QMainWindow):
         self.connection_dialog = ConnectionDialog(parent=self)
         self.connection_dialog.connect_printer.connect( self.updatePrinterURL )
         self.connection_dialog.new_printer.connect( self.createNewConnection )
-        ok = self.connection_dialog.exec()
+        ok2 = self.connection_dialog.exec()
         if( self.newPrinter ):
             self.newPrinter = False
             self.settings_dialog = SettingsDialog(parent=self, addPrinter=True)
@@ -3300,14 +3305,27 @@ class App(QMainWindow):
         return( _errCode, _errMsg, _printerURL )
 ### # display settings dialog
     def displaySettings(self):
-        self.settings_dialog = SettingsDialog(parent=self, addPrinter=False)
+        # Set up settings window
+        try:
+            # Attempt to restore window geometry if available
+            self.settings_dialog = SettingsDialog(parent=self, addPrinter=False, geometry=self.settingsGeometry)
+        except:
+            # No geometry saved, go with defaults
+            self.settingsGeometry = None
+            self.settings_dialog = SettingsDialog(parent=self, addPrinter=False)
         self.settings_dialog.update_settings.connect( self.updateSettings )
         self.settings_dialog.exec()
 ### # display debug dialog
     def displayDebug(self):
-        dbg = DebugDialog(parent=self,message=self.debugString)
-        if dbg.exec_():
-            None
+        # Set up debug screen window
+        try:
+            # Attempt to restore window geometry if available
+            self.debugWindow = DebugDialog(parent=self, geometry=self.debugGeometry )
+        except:
+            # No geometry saved, go with defaults
+            self.debugGeometry = None
+            self.debugWindow = DebugDialog(parent=self)
+        self.debugWindow.exec()
 ### # analyze calibration results
     def analyzeResults(self, graph=False, export=False):
         if len(self.calibrationResults) < 1:
