@@ -15,8 +15,8 @@ curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 sudo python3 get-pip.py
 rm get-pip.py
 pip install imutils
-sudo apt-get install python3-opencv
-sudo apt-get install git
+sudo apt-get -y install python3-opencv
+sudo apt-get -y install git
 cd ~
 git clone https://github.com/HaythamB/TAMV.git
 cd TAMV
