@@ -1714,16 +1714,6 @@ class CalibrateNozzles(QThread):
     def stop(self):
         self._running = False
         self.detection_on = False
-        # try:
-        #     tempCoords = self.printer.getCoordinates()
-        #     if self.printer.isIdle():
-        #         self.parent().printer.unloadTools()
-        #         self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']), Y=str(tempCoords['Y']) )
-        #         timeoutChecker = 0
-        #         while self.parent().printer.getStatus() not in 'idle' and timeoutChecker <= _tamvTimeout:
-        #             timeoutChecker += 1
-        #             time.sleep(1)
-        # except: None
         self.cap.release()
         self.exit()
 
@@ -2742,7 +2732,9 @@ class App(QMainWindow):
 
         if len(self.cp_coords) > 0:
             self.printer.unloadTools()
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']), Y=str(self.cp_coords['Y']), Z=str(self.cp_coords['Z']))
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
         # Enable automated button
         self.autoCalibrateEndstop_button.setDisabled(False)
         # Enable capture button
@@ -2775,7 +2767,8 @@ class App(QMainWindow):
         # Setup GUI for next step
         self.readyToCalibrate()
         # Move printer to CP to prepare for next step
-        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']), Y=str(self.cp_coords['Y']) )
+        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
 ### # manually capture tool offset
     def captureOffset(self):
         # Check if performing CP setup
