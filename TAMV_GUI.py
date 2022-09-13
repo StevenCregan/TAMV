@@ -333,14 +333,7 @@ class SettingsDialog(QDialog):
         if( newPrinter is False ):
             self.printerDefault.setChecked(True)
             self.printerDefault.stateChanged.connect( self.checkDefaults )
-        self.defaultBox = QGroupBox()
-        self.settingsTab.layout.addWidget(self.defaultBox)
-        
-        dfbox = QHBoxLayout()
-        dfbox.setAlignment(Qt.AlignLeft)
-        self.defaultBox.setLayout(dfbox)
-        dfbox.addWidget(self.printerDefault)
-        
+
         # Printer nickname
         if( newPrinter is False ):
             self.printerNickname = QLineEdit( self.default_printer['nickname'] )
@@ -354,6 +347,7 @@ class SettingsDialog(QDialog):
         self.printerNickname_box.setLayout(nnbox)
         nnbox.addWidget(self.printerNickname_label)
         nnbox.addWidget(self.printerNickname)
+        nnbox.addWidget(self.printerDefault)
         
         # Printer address
         if( newPrinter is False ):
@@ -383,11 +377,10 @@ class SettingsDialog(QDialog):
         # Printer controller
         self.controllerName = QComboBox()
         self.controllerName.setToolTip( 'Machine firmware family/category')
+        self.controllerName.setMinimumWidth( 180 )
         # get controller index from master list
         for item in self.parent().firmwareList:
             self.controllerName.addItem(item)
-        # self.controllerName.addItem('RRF/Duet')
-        # self.controllerName.addItem('klipper')
         if( newPrinter is False ):
             # get controller index from master list
             listIndex = -1
@@ -405,10 +398,27 @@ class SettingsDialog(QDialog):
         self.controllerName_label = QLabel('Controller Type: ')
         self.controllerName_box =QGroupBox()
         self.settingsTab.layout.addWidget(self.controllerName_box)
-        cnbox = QHBoxLayout()
+        cnbox = QGridLayout()
+        cnbox.setSpacing(5)
         self.controllerName_box.setLayout(cnbox)
-        cnbox.addWidget(self.controllerName_label)
-        cnbox.addWidget(self.controllerName)
+        cnbox.addWidget( self.controllerName_label, 0, 0, 1, 1, Qt.AlignRight )
+        cnbox.addWidget( self.controllerName, 0, 1, 1, 2, Qt.AlignLeft )
+
+        # Printer with rotated XY kinematics
+        self.printerRotated = QCheckBox('Rotate XY')
+        if( newPrinter is True ):
+            self.printerRotated.setChecked(True)
+        else:
+            try:
+                if( self.default_printer['rotated'] == 1):
+                    self.printerRotated.setChecked(True)
+                else:
+                    self.printerRotated.setChecked(False)
+            except KeyError:
+                # rotated key doesn't exist, add to printer model
+                self.default_printer['rotated'] = 0
+                self.printerRotated.setChecked(False)
+        cnbox.addWidget( self.printerRotated, 0, 3, 1, 1, Qt.AlignRight )
 
         # Printer name
         if( newPrinter is False ):
@@ -456,6 +466,7 @@ class SettingsDialog(QDialog):
             self.controllerName.activated.connect(self.updateAttributes)
             self.versionName.editingFinished.connect(self.updateAttributes)
             self.printerDefault.stateChanged.connect(self.updateAttributes)
+            self.printerRotated.stateChanged.connect(self.updateAttributes)
 
     def checkDefaults( self ):
         if( self.printerDefault.isChecked() ):
@@ -481,6 +492,7 @@ class SettingsDialog(QDialog):
             'controller' : 'RRF/Duet', 
             'version': '',
             'default': 0,
+            'rotated': 0,
             'tools': [
                 { 
                     'number': 0, 
@@ -497,6 +509,7 @@ class SettingsDialog(QDialog):
         self.printerPassword.setDisabled(False)
         self.printerNickname.setDisabled(False)
         self.controllerName.setDisabled(False)
+        self.printerRotated.setDisabled(False)
         self.delete_printer_button.setDisabled(False)
         self.delete_printer_button.setStyleSheet('background-color: red')
         # update combobox
@@ -526,6 +539,7 @@ class SettingsDialog(QDialog):
             self.printerNickname.setText('')
             self.controllerName.setCurrentIndex(0)
             self.versionName.setText('')
+            self.printerRotated.setChecked(False)
             # disable all fields
             self.printerDefault.setDisabled(True)
             self.printerAddress.setDisabled(True)
@@ -534,6 +548,7 @@ class SettingsDialog(QDialog):
             self.printerNickname.setDisabled(True)
             self.controllerName.setDisabled(True)
             self.versionName.setDisabled(True)
+            self.printerRotated.setDisabled(True)
             self.printer_combo.addItem('+++ Add a new profile --->')
             self.printer_combo.setCurrentIndex(0)
             self.delete_printer_button.setDisabled(True)
@@ -576,6 +591,10 @@ class SettingsDialog(QDialog):
                 self.printerDefault.setChecked(True)
             else:
                 self.printerDefault.setChecked(False)
+            if( self.settingsObject['printer'][index]['rotated'] == 1):
+                self.printerRotated.setChecked(True)
+            else:
+                self.printerRotated.setChecked(False)
 
     def updateAttributes( self ):
         index = self.printer_combo.currentIndex()
@@ -590,6 +609,10 @@ class SettingsDialog(QDialog):
                 self.settingsObject['printer'][index]['default'] = 1
             else:
                 self.settingsObject['printer'][index]['default'] = 0
+            if( self.printerRotated.isChecked() ):
+                self.settingsObject['printer'][index]['rotated'] = 1
+            else:
+                self.settingsObject['printer'][index]['rotated'] = 0
 
     def resetDefaults(self):
         self.parent().video_thread.resetProperties()
@@ -719,6 +742,7 @@ class SettingsDialog(QDialog):
                 'controller' : 'RRF/Duet', 
                 'version': '',
                 'default': 1,
+                'rotated': 0,
                 'tools': [
                     { 
                         'number': 0, 
@@ -739,9 +763,10 @@ class SettingsDialog(QDialog):
                 'password': self.printerPassword.text(),
                 'name': '',
                 'nickname': self.printerNickname.text(),
-                'controller' : str(self.controllerName.currentText()), 
+                'controller' : str( self.controllerName.currentText() ),
                 'version': '',
-                'default': int(self.printerDefault.isChecked()),
+                'default': int( self.printerDefault.isChecked() ),
+                'rotated': int( self.printerRotated.isChecked() ),
                 'tools': [
                     { 
                         'number': 0, 
@@ -1059,9 +1084,17 @@ class CalibrateNozzles(QThread):
                                     self.parent().printer.loadTool(int(ptool['number']))
                                     # Move tool to CP coordinates
                                     _logger.debug( 'XX - Jogging tool to calibration set point..' )
-                                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']) )
-                                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']) )
-                                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']) )
+                                    # check kinematics rotation
+                                    if( self.parent().activePrinter['rotated'] == 0 ):
+                                        # Move in X, then Y, then Z
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']) )
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']) )
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']) )
+                                    else:
+                                        # Move in Y, then X, then Z
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']) )
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']) )
+                                        self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']) )
                                     _logger.debug( 'XX - Tool moved to calibration point.' )
                                     # Wait for moves to complete
                                     while self.parent().printer.getStatus() not in 'idle':
@@ -1109,9 +1142,17 @@ class CalibrateNozzles(QThread):
                         # self.parent().debugString += '\nCalibration output:\n'
                         self.parent().displayStandby()
                         self.parent().printer.unloadTools()
-                        self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']))
-                        self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']))
-                        self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']))
+                        # check kinematics rotation
+                        if( self.parent().activePrinter['rotated'] == 0 ):
+                            # Move in X, then Y, then Z
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']))
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']))
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']))
+                        else:
+                            # Move in Y, then X, then Z
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Y=str(self.parent().cp_coords['Y']))
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, X=str(self.parent().cp_coords['X']))
+                            self.parent().printer.moveAbsolute(moveSpeed=_moveSpeed, Z=str(self.parent().cp_coords['Z']))
                         self.status_update.emit( 'Calibration complete: Done.' )
                         self.alignment = False
                         self.detection_on = False
@@ -1180,9 +1221,17 @@ class CalibrateNozzles(QThread):
                 # Send log output
                 _logger.info( '  .. set Control Point: X' + str(self.cp_coords['X']) + ' Y' + str(self.cp_coords['Y']) )
                 # Move machine to new CP coordinates
-                self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                # check kinematics rotation
+                if( self.parent().activePrinter['rotated'] == 0 ):
+                    # Move in X, then Y, then Z
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                else:
+                    # Move in Y, then X, then Z
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                    self.parent().printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
                 # Flag end of detection thread
                 self._running = False
                 _logger.info( '  .. ready for tool alignment!' )
@@ -1404,7 +1453,6 @@ class CalibrateNozzles(QThread):
             still = yuvPlanes[0]
             
             black = np.zeros((still.shape[0],still.shape[1]), np.uint8)
-            black2 = black.copy()
             kernel = np.ones((5,5),np.uint8)
 
             img_blur = cv2.GaussianBlur(still, (9, 9), 3)
@@ -1780,6 +1828,7 @@ class CalibrateNozzles(QThread):
 
     def changeVideoSrc(self, newSrc=-1):
         self.cap.release()
+        
         #HBHBHBH this should be a signal
         self.parent()._videoSrc = newSrc
         # Start Video feed
@@ -2053,6 +2102,7 @@ class App(QMainWindow):
                     'controller' : 'RRF/Duet', 
                     'version': '',
                     'default': 1,
+                    'rotated': 0,
                     'tools': [
                         { 
                             'number': 0, 
@@ -2070,7 +2120,7 @@ class App(QMainWindow):
                     with open( './config/settings.json','w' ) as outputfile:
                         json.dump(self.options, outputfile)
                 except Exception as e1:
-                    errorMsg = 'Error reading user settings file.' + str(e1)
+                    errorMsg = 'Error reading user settings file.' + traceback.format_exc()
                     _logger.critical( errorMsg )
                     raise SystemExit( errorMsg )
         _logger.info( '  .. reading configuration settings..' )
@@ -2130,6 +2180,11 @@ class App(QMainWindow):
                 temp = machine['version']
             except KeyError:
                 machine['version'] = ''
+            # Check if rotated kinematics doesn't exist
+            try:
+                temp = machine['rotated']
+            except KeyError:
+                machine['rotated'] = 0
             # Check if tools doesn't exist
             try:
                 temp = machine['tools']
@@ -2527,8 +2582,6 @@ class App(QMainWindow):
             # printerURL initalization to defaults
             self.printerURL = 'http://localhost'
         # Prompt user for machine connection address
-        # text, ok = QInputDialog.getText(self, 'Machine URL','Machine IP address or hostname: ', QLineEdit.Normal, self.printerURL)
-
         self.connection_dialog = ConnectionDialog(parent=self)
         self.connection_dialog.connect_printer.connect( self.updatePrinterURL )
         self.connection_dialog.new_printer.connect( self.createNewConnection )
@@ -2559,6 +2612,9 @@ class App(QMainWindow):
                     return
             # input has been parsed and is clean, proceed
             self.printerURL = tempURL
+            # disable settings menu
+            self.settingsAction.setDisabled(True)
+            self.saveAction.setDisabled(True)
         # Handle clicking cancel
         elif not ok:
             self.updateStatusbar( 'Connection request cancelled.' )
@@ -2603,8 +2659,9 @@ class App(QMainWindow):
             
             if not self.printer.isIdle():
                 # connection failed for some reason
-                self.updateStatusbar( 'Device at '+self.printerURL+' either did not respond or is not a Duet V2 or V3 printer.' )
-                _logger.info( 'Device at '+self.printerURL+' either did not respond or is not a Duet V2 or V3 printer.' )
+                errorMsg = 'Device either did not respond or is not a supported controller type.'
+                self.updateStatusbar( errorMsg )
+                _logger.info( errorMsg )
                 self.resetConnectInterface()
                 return
             else:
@@ -2679,32 +2736,34 @@ class App(QMainWindow):
         try:
             # get default camera from user settings
             cameraSet = False
-            new_video_src = 0
-            for camera in self.options['camera']:
-                try:
-                    if( camera['default'] == 1 and cameraSet is False ):
-                        new_video_src = camera['video_src']
-                        self.video_thread.changeVideoSrc( newSrc=new_video_src )
-                        self._videoSrc = new_video_src
-                        cameraSet = True
-                        continue
-                    elif( cameraSet ):
-                        # already have a default, unset other entries
-                        camera['default'] = 0
-                except KeyError:
-                    # No default camera defined, add key
-                    camera['default'] = 0
-                    continue
+            # new_video_src = 0
+            # for camera in self.options['camera']:
+            #     try:
+            #         if( camera['default'] == 1 and cameraSet is False ):
+            #             # if new default, switch feed
+            #             if( self._videoSrc != new_video_src ):
+            #                 new_video_src = camera['video_src']
+            #                 self.video_thread.changeVideoSrc( newSrc=new_video_src )
+            #                 self._videoSrc = new_video_src
+            #             cameraSet = True
+            #             continue
+            #         elif( cameraSet ):
+            #             # already have a default, unset other entries
+            #             camera['default'] = 0
+            #     except KeyError:
+            #         # No default camera defined, add key
+            #         camera['default'] = 0
+            #         continue
             # check if there are no cameras set as default
             if( cameraSet is False ):
                 # Set first camera entry to be the default source
                 self.options['camera'][0]['default'] = 1
-                try: 
-                    # activate default camera feed
-                    self.video_thread.changeVideoSrc( newSrc=new_video_src )
-                    self._videoSrc = new_video_src
-                except:
-                    _logger.critical( 'Cannot load default camera source.' )
+                # try: 
+                #     # activate default camera feed
+                #     self.video_thread.changeVideoSrc( newSrc=new_video_src )
+                #     self._videoSrc = new_video_src
+                # except:
+                #     _logger.critical( 'Cannot load default camera source.' )
             # Save settings to file
             with open( './config/settings.json','w' ) as outputfile:
                 json.dump(self.options, outputfile)
@@ -2729,12 +2788,19 @@ class App(QMainWindow):
         # display crosshair on video feed at center of image
         self.crosshair = True
         self.calibration_button.setDisabled(True)
-
         if len(self.cp_coords) > 0:
             self.printer.unloadTools()
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+            # check kinematics rotation
+            if( self.activePrinter['rotated'] == 0 ):
+                # Move in X, then Y, then Z
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+            else:
+                # Move in Y, then X, then Z
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
         # Enable automated button
         self.autoCalibrateEndstop_button.setDisabled(False)
         # Enable capture button
@@ -2767,8 +2833,15 @@ class App(QMainWindow):
         # Setup GUI for next step
         self.readyToCalibrate()
         # Move printer to CP to prepare for next step
-        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+        # check kinematics rotation
+        if( self.activePrinter['rotated'] == 0 ):
+            # Move in X, then Y, then Z
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+        else:
+            # Move in Y, then X, then Z
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
 ### # manually capture tool offset
     def captureOffset(self):
         # Check if performing CP setup
@@ -2844,7 +2917,7 @@ class App(QMainWindow):
         self.toolButtons_box.setVisible(False)
         self.detectOn_checkbox.setVisible(False)
         self.autoCalibrateEndstop_button.setDisabled(True)
-        _logger.debug( 'Updating tool interface..' )
+        # _logger.debug( 'Updating tool interface..' )
         # for tool in self.printerObject['tools']:
         #     current_tool = self.printer.getToolOffset( tool['number'] ) 
         #     x_tableitem = QTableWidgetItem("{:.3f}".format(current_tool['X']))
@@ -2958,13 +3031,29 @@ class App(QMainWindow):
                 # return carriage to control point position
                 _logger.info( ' .. restoring position..' )
                 if len(self.cp_coords) > 0:
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
                 else:
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 printerDisconnected = True
             else:
                 if( self.printer.isHomed() ):
@@ -3055,17 +3144,34 @@ class App(QMainWindow):
             if status == QMessageBox.Yes:
                 self.displayStandby()
                 self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
+                # unload tools
+                self.printer.unloadTools()
+                # check if CP has been set
                 if len(self.cp_coords) > 0:
-                    self.printer.unloadTools()
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
                 else:
                     tempCoords = self.printer.getCoordinates()
-                    self.printer.unloadTools()
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 # End video threads and restart default thread
                 self.video_thread.alignment = False
                 # Update GUI for unloading carriage
@@ -3085,19 +3191,36 @@ class App(QMainWindow):
             if status == QMessageBox.Yes:
                 self.displayStandby()
                 # return carriage to control point position
+                self.printer.unloadTools()
                 if len(self.cp_coords) > 0:
-                    self.printer.unloadTools()
+                    # load requested tool
                     self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
                 else:
                     tempCoords = self.printer.getCoordinates()
-                    self.printer.unloadTools()
+                    # load requested tool
                     self.printer.loadTool( toolIndex=int(sender.text()[1:]) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
-                    self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    # check kinematics rotation
+                    if( self.activePrinter['rotated'] == 0 ):
+                        # Move in X, then Y, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
+                    else:
+                        # Move in Y, then X, then Z
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(tempCoords['Y']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
+                        self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 # START DETECTION THREAD HANDLING
                 # close camera settings dialog so it doesn't crash
                 try:
@@ -3433,6 +3556,8 @@ class App(QMainWindow):
             index -= 1
         self.toolButtons_box.setVisible(False)
         self.toolButtons = []
+        self.settingsAction.setDisabled(False)
+        self.saveAction.setDisabled(False)
         app.processEvents()
 ### # disable CP buttons
     def disableButtonsCP(self):
