@@ -653,17 +653,24 @@ class SettingsDialog(QDialog):
             + 'x' + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
             + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FPS))) + 'fps'
         _cameras.append(original_camera_description)
+        tempCap = cv2.VideoCapture()
+        tempCap.setExceptionMode( True )
         while i > 0:
             if index != self.parent()._videoSrc:
-                tempCap = cv2.VideoCapture(index)
-                if tempCap.read()[0]:
-                    api = tempCap.getBackendName()
-                    camera_description = str(index) + ': ' \
-                        + str(int(tempCap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
-                        + 'x' + str(int(tempCap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
-                        + str(int(tempCap.get(cv2.CAP_PROP_FPS))) + 'fps'
-                    _cameras.append(camera_description)
+                try:
+                    tempCap.open(index)
+                    if tempCap.read()[0]:
+                        api = tempCap.getBackendName()
+                        camera_description = str(index) + ': ' \
+                            + str(int(tempCap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
+                            + 'x' + str(int(tempCap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
+                            + str(int(tempCap.get(cv2.CAP_PROP_FPS))) + 'fps'
+                        _cameras.append(camera_description)
                     tempCap.release()
+                except:
+                    index += 1
+                    i -= 1
+                    continue
             index += 1
             i -= 1
         #cameras = [line for line in allOutputs if float(line['propmode']) > -1 ]
@@ -833,7 +840,7 @@ class ConnectionDialog(QDialog):
 class OverlayLabel(QLabel):
     def __init__(self):
         super(OverlayLabel, self).__init__()
-        self.display_text = 'Welcome to TAMV. Enter your printer address and click \"Connect..\" to start.'
+        self.display_text = 'Welcome to TAMV. Click \"Connect..\" to start.'
 
     def paintEvent(self, event):
         super(OverlayLabel, self).paintEvent(event)
@@ -1912,7 +1919,7 @@ class App(QMainWindow):
         self.setStyleSheet(
             '\
             QLabel#instructions_text {\
-                background-color: yellow;\
+                background-color: rgba(255,153,0,.4);\
             }\
             QPushButton {\
                 border: 1px solid #adadad;\
@@ -2013,8 +2020,11 @@ class App(QMainWindow):
             QInputDialog QDialogButtonBox > QPushButton:hover:!pressed, QDialog QPushButton:hover:!pressed {\
                 background-color: #27ae60;\
             }\
+            QToolTip, QLabel > QToolTip {\
+                color: black !important;\
+            }\
             '
-        )
+        ) # HBHBHB fix QToolTip color
 ### #  load user parameters
         try:
             with open( './config/settings.json','r' ) as inputfile:
@@ -2189,7 +2199,7 @@ class App(QMainWindow):
         
 ### ##  Statusbar
         self.statusBar = QStatusBar()
-        self.statusBar.showMessage( 'Loading up video feed and libraries..',5000)
+        self.statusBar.showMessage( 'Ready to connect.' )
         self.setStatusBar( self.statusBar )
         # CP location on statusbar
         self.cp_label = QLabel( '<b>CP:</b> <i>undef</i>' )
@@ -2225,7 +2235,7 @@ class App(QMainWindow):
         self.controlPoint_button.setFixedWidth(170)
         self.controlPoint_button.setDisabled(True)
 ### ### calibration button
-        self.calibration_button = QPushButton( 'Start Tool Alignment' )
+        self.calibration_button = QPushButton( 'Start tool alignment..' )
         self.calibration_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
         self.calibration_button.clicked.connect(self.runCalibration)
         self.calibration_button.setDisabled(True)
@@ -2242,12 +2252,12 @@ class App(QMainWindow):
         self.exit_button.clicked.connect(self.close)
         self.exit_button.setFixedWidth(170)
 ### ### autoCalibrateEndstop button
-        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture' )
+        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture..' )
         self.autoCalibrateEndstop_button.setFixedWidth(170)
         self.autoCalibrateEndstop_button.clicked.connect(self.startAutoCPCapture)
         self.autoCalibrateEndstop_button.setDisabled(True)
 ### ### manualAlignment button
-        self.manualAlignment_button = QPushButton( 'Capture' )
+        self.manualAlignment_button = QPushButton( 'Capture..' )
         self.manualAlignment_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
         self.manualAlignment_button.clicked.connect(self.captureOffset)
         self.manualAlignment_button.setDisabled(True)
@@ -2294,14 +2304,17 @@ class App(QMainWindow):
 ### ### instructionsPanel box
         self.instructionsPanel_layout = QGridLayout()
         self.instructionsPanel_layout.setSpacing(0)
-        self.instructionsPanel_layout.setContentsMargins(0,10,0,0)
+        self.instructionsPanel_layout.setContentsMargins(0,0,0,0)
         self.instructionsPanel_layout.setColumnMinimumWidth(0,180)
-        self.instructionsPanel_layout.setColumnStretch(0,0)
+        self.instructionsPanel_layout.setColumnStretch(0,1)
+        self.instructionsPanel_layout.setRowStretch(0,1)
+        # self.instructionsPanel_layout.setRowStretch()
         self.instructionsPanel_box = QGroupBox( 'Instructions' )
+        self.instructionsPanel_box.setAlignment( Qt.AlignHCenter )
         self.instructionsPanel_box.setObjectName( 'instructionsPanel_box' )
         self.instructionsPanel_box.setContentsMargins(0,0,0,0)
         self.instructionsPanel_box.setLayout(self.instructionsPanel_layout)
-        self.instructions_text = QLabel( 'Welcome to TAMV.<br>Please connect to your printer.',objectName="instructions_text")
+        self.instructions_text = QLabel( 'Click on \"<b>Connect..</b>\" to select a machine for calibration.',objectName="instructions_text")
         self.instructions_text.setContentsMargins(12,5,12,5)
         self.instructions_text.setWordWrap(True)
         self.instructionsPanel_layout.addWidget(self.instructions_text, 0, 0)
@@ -2450,12 +2463,12 @@ class App(QMainWindow):
         # tool selection table
         grid.addWidget( self.toolButtons_box,              3,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
         # instruction box
-        grid.addWidget( self.instructionsPanel_box,      4,  7,  1,  1,  Qt.AlignCenter | Qt.AlignTop )
+        grid.addWidget( self.instructionsPanel_box,      4,  7,  3,  1,  Qt.AlignCenter | Qt.AlignTop )
         # conditional exit button
         if self.small_display:
             grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         # debug window button
-        grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
+        # grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         
         ###################################################
         # Third container
@@ -2492,8 +2505,9 @@ class App(QMainWindow):
 ### # connect to printer
     def connectToPrinter(self):
         # temporarily suspend GUI and display status message
-        self.image_label.setText( 'Waiting to connect..' )
-        self.updateStatusbar( 'Please enter machine IP address or name prefixed with http(s)://' )
+        self.image_label.setText( 'Waiting to connect to machine..' )
+        self.updateStatusbar( 'Select connection from list..' )
+        self.instructions_text.setText( 'Choose a profile to use for the connection, or create a new connection profile by choosing<br><br><b>\"Add a new machine..\"</b>..')
         self.connect_button.setDisabled(True)
         self.disconnect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
@@ -2565,12 +2579,15 @@ class App(QMainWindow):
             message = 'Invalid IP address or hostname: \"' + text +'\". Add http(s):// to try again.'
             self.updateStatusbar(message)
             self.instructions_text.setText(message)
+            app.processEvents()
             self.resetConnectInterface()
             return
         # Update user with new state
-        self.statusBar.showMessage( 'Attempting to connect to: ' + self.printerURL )
+        self.updateStatusbar( 'Attempting to connect to: ' + self.activePrinter['nickname'] + ' (' + self.activePrinter['controller']+ ')' )
+        self.instructions_text.setText('Attempting to connect to: <b>' + self.activePrinter['nickname'] + '</b> (<i>' + self.activePrinter['controller']+ '</i>)' )
         _logger.info( 'Attempting to connect to: ' + self.printerURL )
-        # Attempt connecting to the Duet controller
+        app.processEvents()
+        # Attempt connecting to the controller
         try:
             # get active profile controller
             activeDriver = self.activePrinter['controller']
@@ -2624,7 +2641,7 @@ class App(QMainWindow):
                     self.toolButtons.append(toolButton)
                 _logger.debug( 'Tool data and interface created successfully.' )
         except Exception:
-            self.updateStatusbar( 'Cannot connect to: ' + self.printerURL )
+            self.updateStatusbar( 'Cannot connect to: ' + self.activePrinter['nickname'] )
             _logger.error( 'Cannot connect to machine: ' + traceback.format_exc() )
             self.resetConnectInterface()
             return
@@ -2641,11 +2658,11 @@ class App(QMainWindow):
             self.toolBox_boxlayout.addWidget(button)
         self.toolButtons_box.setVisible(True)
         # Connection succeeded, update GUI first
-        self.updateStatusbar( 'Connected to a Duet V'+str(self.printer.getPrinterType()) )
         self.connect_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
-        self.statusBar.showMessage( 'Connected to printer at ' + self.printerURL, 5000)
-        self.connection_status.setText( 'Connected.' )
-        self.image_label.setText( 'Set your Control Point to continue.' )
+        self.statusBar.showMessage( 'Ready.' )
+        self.connection_status.setText( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
+        self.connection_status.setToolTip( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
+        self.image_label.setText( 'Set Control Point.' )
         # enable/disable buttons
         self.connect_button.setDisabled(True)
         self.calibration_button.setDisabled(True)
@@ -2664,7 +2681,8 @@ class App(QMainWindow):
         self.cp_label.setStyleSheet(style_red)
 
         # Update instructions box
-        self.instructions_text.setText("Place endstop near center of preview window, and set your control point.")
+        self.instructions_text.setText("Place endstop near center of preview window, and select:<br><br><b>Set Control Point..</b>.")
+        app.processEvents()
         _logger.info( '  .. connection successful!' )
 ### # save user settings.json
     def saveUserSettings(self):
@@ -2730,7 +2748,8 @@ class App(QMainWindow):
         # Enable capture button
         self.manualAlignment_button.setDisabled(False)
         # Update instructions box
-        self.instructions_text.setText( 'To auto-align, click \"Automated Capture\". Otherwise, use jog panel to center on crosshair and then click Capture.' )
+        self.instructions_text.setText( 'To auto-align, click \"<b>Automated capture..</b>\". Otherwise, use jog panel to center on crosshair and then click <b>Capture..</b>.' )
+        app.processEvents()
         # wait for user to conclude with state flag
         self.flag_CP_setup = True
         return
@@ -2900,6 +2919,7 @@ class App(QMainWindow):
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Restoring machine to initial state..' )
         self.updateStatusbar( 'Restoring machine and disconnecting...' )
+        self.instructions_text.setText('Disconnecting from:<br><b>' + self.activePrinter['nickname'] + '</b> (<i>' + self.activePrinter['controller']+ '</i>)<br><br>Please wait..' )
         self.connect_button.setText( 'Pending..' )
         self.connect_button.setDisabled(True)
         self.disconnect_button.setDisabled(True)
@@ -2909,6 +2929,7 @@ class App(QMainWindow):
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Disconnecting..' )
+        self.connection_status.setToolTip(None)
         self.connection_status.setStyleSheet(style_orange)
         self.cp_label.setText( '<b>CP:</b> <i>undef</i>' )
         self.cp_label.setStyleSheet(style_orange)
@@ -2962,20 +2983,20 @@ class App(QMainWindow):
         # update status with disconnection state
         if _ret_error == 0:
             self.updateStatusbar( 'Disconnected.' )
-            self.image_label.setText( 'Disconnected.' )
             self.statusBar.setStyleSheet(style_default)
             _logger.info( ' .. connection terminated.' )
         else: 
             # handle unforeseen disconnection error (power loss?)
             _logger.error('Disconnect: error communicating with machine.')
             self.statusBar.showMessage( 'Disconnect: error communicating with machine.' )
+            self.image_label.setText( 'WARNING: unexpected disconnection.' )
             self.statusBar.setStyleSheet(style_red)
         # Reinitialize printer object
         self.printer = None
         
         # Tools unloaded, reset GUI
         self.instructions_text.setText( 'Welcome to TAMV. Enter your printer address and click \"Connect..\" to start.' )
-        self.image_label.setText( 'Welcome to TAMV. Enter your printer address and click \"Connect..\" to start.' )
+        self.image_label.setText( 'Ready to connect to machine..' )
         self.connect_button.setText( 'Connect..' )
         self.connect_button.setDisabled(False)
         self.disconnect_button.setDisabled(True)
@@ -3002,10 +3023,11 @@ class App(QMainWindow):
         if( self.printer.isHomed() is False ):
             # Update status bar
             self.updateStatusbar( "One or more axes are not homed. Please re-home machine." )
-            self.updateMessagebar("")
+            self.updateMessagebar( "Machine not ready." )
             self.statusBar.setStyleSheet(style_red)
             # Update instruction box
             self.instructions_text.setText("One or more axes are not homed. Please home your machine and retry.")
+            app.processEvents()
             return False
         else:
             self.statusBar.setStyleSheet(style_default)
@@ -3410,7 +3432,7 @@ class App(QMainWindow):
         self.autoCalibrateEndstop_button.setDisabled(True)
         self.crosshair = False
         self.statusBar.setStyleSheet(style_default)
-        self.instructions_text.setText("Please enter your printer address and click \"Connect..\" to start.")
+        self.instructions_text.setText("Click on \"<b>Connect..</b>\" to select a machine for calibration.")
         index = self.toolBox_boxlayout.count()-1
         while index >= 0:
             curWidget = self.toolBox_boxlayout.itemAt(index).widget()
@@ -3418,7 +3440,7 @@ class App(QMainWindow):
             index -= 1
         self.toolButtons_box.setVisible(False)
         self.toolButtons = []
-        self.repaint()
+        app.processEvents()
 ### # disable CP buttons
     def disableButtonsCP(self):
         for item in self.toolButtons:
@@ -3430,7 +3452,8 @@ class App(QMainWindow):
             item.setDisabled(False)
         self.manualAlignment_button.setDisabled(True)
         self.statusBar.showMessage( 'Control Point coordinates saved.',3000)
-        self.image_label.setText( 'Control Point set. Click \"Start Tool Alignment\" to calibrate..' )
+        self.image_label.setText( 'Ready to run calibration.' )
+        self.instructions_text.setText( "<i>Ready to run calibration.</i><br>To run for all tools, <br>\"<b>Start tool alignment..</b>\"<br><br>Set the number of times to run using the \"<b>Cycles</b>\" spin box." )
         self.controlPoint_button.setText( 'Set new control point.. ' )
         #self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
         self.cp_label.setStyleSheet(style_green)
@@ -3511,15 +3534,15 @@ class App(QMainWindow):
         self.image_label.setPixmap(self.standbyImage)
         standbyMessage = 'Changing tools, please stand by..'
         self.updateStatusbar( standbyMessage )
-        self.image_label.setText( standbyMessage )
+        self.image_label.setText( '...' )
         app.processEvents()
         return
 ### # display tool number on GUI
     def displayToolLoaded( self, tool ):
         if( tool == -1 ):
-            standbyMessage = 'Tools unloaded from machine.'
+            standbyMessage = 'No active tool..'
         else:
-            standbyMessage = 'T' + str(tool) + ' loaded.'
+            standbyMessage = 'T' + str(tool) + ' active..'
         self.updateStatusbar( standbyMessage )
         self.updateMessagebar( standbyMessage )
         app.processEvents()
@@ -3531,10 +3554,12 @@ class App(QMainWindow):
     @pyqtSlot(str)
     def updateStatusbar(self, statusCode ):
         self.statusBar.showMessage(statusCode)
+        app.processEvents()
 ### # update MessageBar
     @pyqtSlot(str)
     def updateMessagebar(self, statusCode ):
         self.image_label.setText(statusCode)
+        app.processEvents()
 ### # switch crosshair
     @pyqtSlot(bool)
     def updateCrosshairDisplay( self, crosshair_flag ):
@@ -3580,13 +3605,14 @@ class App(QMainWindow):
         # Updates the image_label with a new opencv image
         qt_img = self.convert_cv_qt(cv_img)
         self.image_label.setPixmap(qt_img)
-        #self.mutex.unlock()
+        app.processEvents()
 ### # update CP label
     @pyqtSlot(object)
     def update_cpLabel( self, newCoords ):
         self.cp_coords = newCoords
         self.cp_string = '( ' + str(self.cp_coords['X']) + ', ' + str(self.cp_coords['Y']) + ' )'
         self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
+        app.processEvents()
 ### # update saved settings.json
     @pyqtSlot( object )
     def updateSettings( self, settingOptions ):
