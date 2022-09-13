@@ -55,11 +55,11 @@ global _logger
 
 # styles
 global style_green, style_red, style_disabled, style_orange
-style_green = 'background-color: green; color: white;'
-style_red = 'background-color: red; color: white;'
-style_disabled = 'background-color: #cccccc; color: #999999; border-style: solid;'
-style_orange = 'background-color: dark-grey; color: orange;'
-style_default = 'background-color: rgba(0,0,0,0); color: black;'
+style_green = '* { background-color: green; color: white;} QToolTip { color: black }'
+style_red = '* { background-color: red; color: white;} QToolTip { color: black }'
+style_disabled = '* { background-color: #cccccc; color: #999999; border-style: solid;} QToolTip { color: black }'
+style_orange = '* { background-color: dark-grey; color: orange;} QToolTip { color: black }'
+style_default = '* { background-color: rgba(0,0,0,0); color: black;} QToolTip { color: black }'
 
 # debug flags
 debugging_small_display = False
@@ -2059,10 +2059,10 @@ class App(QMainWindow):
                 background-color: #27ae60;\
             }\
             QToolTip, QLabel > QToolTip {\
-                color: blue !important;\
+                color: black;\
             }\
             '
-        ) #HBHBHBHB fix QToolTip color
+        )
 ### #  load user parameters
         try:
             with open( './config/settings.json','r' ) as inputfile:
