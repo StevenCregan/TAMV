@@ -14,9 +14,6 @@
 #
 
 # Imports
-# import pstats
-# from tkinter.tix import Tree
-from lib2to3.pgen2 import driver
 from PyQt5.QtWidgets import (
     QAction, QApplication, QCheckBox, QComboBox, QDesktopWidget,
     QDialog, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
@@ -180,8 +177,6 @@ class SettingsDialog(QDialog):
         try:
             (brightness_input, contrast_input, saturation_input, hue_input) = self.parent().video_thread.getProperties()
             # Get current source from global variable
-            global video_src
-            currentSrc = video_src
         except Exception:
             self.updateStatusbar( 'Error fetching camera parameters.' )
             _logger.error( 'Camera Error 0x00: \n' + traceback.format_exc() )
@@ -191,12 +186,12 @@ class SettingsDialog(QDialog):
         self.camera_combo = QComboBox()
         for camera in self.settingsObject['camera']:
             if( camera['default'] == 1 ):
-                camera_description = '* ' + str(video_src) + ': ' \
-                    + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_WIDTH)) \
-                    + 'x' + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) + ' @ ' \
-                    + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FPS)) + 'fps'
+                camera_description = '* ' + str(self.parent()._videoSrc) + ': ' \
+                    + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
+                    + 'x' + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
+                    + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FPS))) + 'fps'
             else:
-                camera_description = str(camera['video_src']) + ': ' + str(camera['display_width']) + 'x' + str(camera['display_height'])
+                camera_description = str(camera['video_src']) + ': ' + str(int(camera['display_width'])) + 'x' + str(int(camera['display_height']))
             self.camera_combo.addItem(camera_description)
         
         #HBHBHBHB: need to pass actual video source string object from parameter helper function!!!
@@ -653,20 +648,20 @@ class SettingsDialog(QDialog):
         index = 0
         self.camera_combo.clear()
         _cameras = []
-        original_camera_description = '* ' + str(video_src) + ': ' \
-            + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_WIDTH)) \
-            + 'x' + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) + ' @ ' \
-            + str(self.parent().video_thread.cap.get(cv2.CAP_PROP_FPS)) + 'fps'
+        original_camera_description = '* ' + str(self.parent()._videoSrc) + ': ' \
+            + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
+            + 'x' + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
+            + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FPS))) + 'fps'
         _cameras.append(original_camera_description)
         while i > 0:
-            if index != video_src:
+            if index != self.parent()._videoSrc:
                 tempCap = cv2.VideoCapture(index)
                 if tempCap.read()[0]:
                     api = tempCap.getBackendName()
                     camera_description = str(index) + ': ' \
-                        + str(tempCap.get(cv2.CAP_PROP_FRAME_WIDTH)) \
-                        + 'x' + str(tempCap.get(cv2.CAP_PROP_FRAME_HEIGHT)) + ' @ ' \
-                        + str(tempCap.get(cv2.CAP_PROP_FPS)) + 'fps'
+                        + str(int(tempCap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
+                        + 'x' + str(int(tempCap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
+                        + str(int(tempCap.get(cv2.CAP_PROP_FPS))) + 'fps'
                     _cameras.append(camera_description)
                     tempCap.release()
             index += 1
@@ -865,7 +860,7 @@ class CalibrateNozzles(QThread):
     result_update = pyqtSignal(object)
     crosshair_display = pyqtSignal(bool)
     update_cpLabel = pyqtSignal(object)
-
+    # State flags
     alignment = False
     _running = False
     display_crosshair = False
@@ -903,9 +898,10 @@ class CalibrateNozzles(QThread):
         self.hue = -1
 
         # Start Video feed
-        self.cap = cv2.VideoCapture(video_src)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+        _logger.debug( 'Starting video: ' + str(self.parent()._cameraWidth)+'x'+str(self.parent()._cameraHeight) )
+        self.cap = cv2.VideoCapture(self.parent()._videoSrc)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
         #self.cap.set(cv2.CAP_PROP_FPS,25)
         self.brightness_default = self.cap.get(cv2.CAP_PROP_BRIGHTNESS)
@@ -918,9 +914,9 @@ class CalibrateNozzles(QThread):
             local_img = self.cv_img
             self.change_pixmap_signal.emit(local_img)
         else:
-            self.cap.open(video_src)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+            self.cap.open(self.parent()._videoSrc)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
             #self.cap.set(cv2.CAP_PROP_FPS,25)
             self.ret, self.cv_img = self.cap.read()
@@ -1072,9 +1068,9 @@ class CalibrateNozzles(QThread):
                                             # self.change_pixmap_signal.emit(local_img)
                                         else:
                                             _logger.debug( 'XX - Video source invalid, resetting.' )
-                                            self.cap.open(video_src)
-                                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-                                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+                                            self.cap.open(self.parent()._videoSrc)
+                                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+                                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
                                             self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                                             #self.cap.set(cv2.CAP_PROP_FPS,25)
                                             self.ret, self.cv_img = self.cap.read()
@@ -1192,9 +1188,9 @@ class CalibrateNozzles(QThread):
                             self.change_pixmap_signal.emit(local_img)
                         else:
                             # reset capture
-                            self.cap.open(video_src)
-                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+                            self.cap.open(self.parent()._videoSrc)
+                            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+                            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
                             self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                             #self.cap.set(cv2.CAP_PROP_FPS,25)
                             self.ret, self.cv_img = self.cap.read()
@@ -1233,9 +1229,9 @@ class CalibrateNozzles(QThread):
             if not self.ret:
                 # reset capture
                 _logger.debug( 'Resetting camera capture!' )
-                self.cap.open(video_src)
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+                self.cap.open(self.parent()._videoSrc)
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                 _logger.debug( 'Camera source reset.' )
                 continue
@@ -1385,9 +1381,9 @@ class CalibrateNozzles(QThread):
             self.ret, self.frame = self.cap.read()
             if not self.ret:
                 # reset capture
-                self.cap.open(video_src)
-                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+                self.cap.open(self.parent()._videoSrc)
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
                 continue
                 # HBHBHBHBHB
@@ -1683,7 +1679,7 @@ class CalibrateNozzles(QThread):
                 self.count = 0
 
     def normalize_coords(self,coords):
-        xdim, ydim = camera_width, camera_height
+        xdim, ydim = self.parent()._cameraWidth, self.parent()._cameraHeight
         return (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
 
     def least_square_mapping(self,calibration_points):
@@ -1787,11 +1783,12 @@ class CalibrateNozzles(QThread):
 
     def changeVideoSrc(self, newSrc=-1):
         self.cap.release()
-        video_src = newSrc
+        #HBHBHBH this should be a signal
+        self.parent()._videoSrc = newSrc
         # Start Video feed
-        self.cap.open(video_src)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+        self.cap.open(newSrc)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
         #self.cap.set(cv2.CAP_PROP_FPS,25)
         self.brightness_default = self.cap.get(cv2.CAP_PROP_BRIGHTNESS)
@@ -1804,9 +1801,9 @@ class CalibrateNozzles(QThread):
             local_img = self.cv_img
             self.change_pixmap_signal.emit(local_img)
         else:
-            self.cap.open(video_src)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, camera_width)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, camera_height)
+            self.cap.open(self.parent()._videoSrc)
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.parent()._cameraWidth)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.parent()._cameraHeight)
             self.cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
             #self.cap.set(cv2.CAP_PROP_FPS,25)
             self.ret, self.cv_img = self.cap.read()
@@ -1837,6 +1834,10 @@ class App(QMainWindow):
     # driver API lists
     firmwareList = []
     driverList = []
+    # global video feed parameters
+    _cameraWidth = 640
+    _cameraHeight = 480
+    _videoSrc = 0
 
 
 ### Initialize class
@@ -1845,13 +1846,13 @@ class App(QMainWindow):
         _logger.info( 'Launching application.. ' )
         super().__init__()
 ### #  setup class attributes
-        self.standbyImage = QPixmap('./standby.jpg')
+        self.standbyImage = QPixmap('./resources/standby.jpg')
         self.printer = None
         # Driver API imports
         try:
             with open( 'drivers.json','r' ) as inputfile:
                 driverJSON = json.load(inputfile)
-            _logger.info( '  .. reading drivers..' )
+            _logger.info( '  .. loading drivers..' )
             for driverEntry in driverJSON:
                 self.firmwareList.append( driverEntry['firmware'] )
                 self.driverList.append( driverEntry['filename'] )            
@@ -1862,7 +1863,7 @@ class App(QMainWindow):
 ### #  setup window properties
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV' )
-        self.setWindowIcon(QIcon( 'jubilee.png' ))
+        self.setWindowIcon(QIcon( './resources/jubilee.png' ))
 ### #  handle screen mode based on resolution
         global display_width, display_height
         screen = QDesktopWidget().availableGeometry()
@@ -2015,121 +2016,131 @@ class App(QMainWindow):
             '
         )
 ### #  load user parameters
-        global camera_width, camera_height, video_src
         try:
-            with open( 'settings.json','r' ) as inputfile:
+            with open( './config/settings.json','r' ) as inputfile:
                 self.options = json.load(inputfile)
-            _logger.info( '  .. reading settings.json..' )
-            # Fetch defined cameras
-            camera_settings = self.options['camera'][0]
-            defaultCameraDefined = False
-            for source in self.options['camera']:
-                try:
-                    if( source['default'] == 1 ):
-                        camera_settings = source
-                        defaultCameraDefined = True
-                    else:
-                        continue
-                except KeyError as ke:
-                    # no default field detected - create a default if not already done
-                    if( defaultCameraDefined is False ):
-                        # Set default camera since none exist so far
-                        source['default'] = 1
-                        defaultCameraDefined = True
-                    else:
-                        source['default'] = 0
-                    pass
-            camera_height = int( camera_settings['display_height'] )
-            camera_width = int( camera_settings['display_width'] )
-            video_src = camera_settings['video_src']
-            if len(str(video_src)) == 1: 
-                video_src = int(video_src)
-            # Fetch defined machines
-            tempURL = self.options['printer'][0]['address']
-            defaultPrinterDefined = False
-            for machine in self.options['printer']:
-                # Find default printer first
-                try:
-                    if( machine['default'] == 1 ):
-                        tempURL = machine['address']
-                except KeyError as ke:
-                    # no default field detected - create a default if not already done
-                    if( defaultPrinterDefined is False ):
-                        machine['default'] = 1
-                        defaultPrinterDefined = True
-                    else:
-                        machine['default'] = 0
-                # Check if password doesn't exist
-                try:
-                    temp = machine['password']
-                except KeyError:
-                    machine['password'] = 'reprap'
-                # Check if nickname doesn't exist
-                try:
-                    temp = machine['nickname']
-                except KeyError:
-                    machine['nickname'] = machine['name']
-                # Check if controller doesn't exist
-                try:
-                    temp = machine['controller']
-                except KeyError:
-                    machine['controller'] = 'RRF/Duet'
-                # Check if version doesn't exist
-                try:
-                    temp = machine['version']
-                except KeyError:
-                    machine['version'] = ''
-                # Check if tools doesn't exist
-                try:
-                    temp = machine['tools']
-                except KeyError:
-                    machine['tools'] = [ { 'number': 0, 'name': 'Tool 0', 'nozzleSize': 0.4, 'offsets': [0,0,0] } ]
-            ( _errCode, _errMsg, self.printerURL ) = self.sanitizeURL(tempURL)
-            if _errCode > 0:
-                # invalid input
-                _logger.error( 'Invalid printer URL detected in settings.json' )
-                _logger.info( 'Defaulting to \"http://localhost\"...' )
-                self.printerURL = 'http://localhost'
         except FileNotFoundError:
-            # No settings file defined, create a new one
-            _logger.info( '  .. creating new settings.json..' )
-            # create parameter file with standard parameters
-            
-            # create a camera array
-            self.options['camera'] = []
-            self.options['camera'].append( {
-                'video_src': 0,
-                'display_width': '640',
-                'display_height': '480',
-                'default': 1
-            } )
-            # Create a printer array
-            self.options['printer'] = [
-                { 
-                'address': 'http://localhost',
-                'password': 'reprap',
-                'name': 'My Duet',
-                'nickname': 'Default',
-                'controller' : 'RRF/Duet', 
-                'version': '',
-                'default': 1,
-                'tools': [
-                    { 
-                        'number': 0, 
-                        'name': 'Tool 0', 
-                        'nozzleSize': 0.4, 
-                        'offsets': [0,0,0] 
-                    } ]
-                }
-            ]
             try:
-                camera_width = 640
-                camera_height = 480
-                video_src = 1
-                with open( 'settings.json','w' ) as outputfile:
-                    json.dump(self.options, outputfile)
-            except Exception as e1:
-                _logger.error( 'Error reading user settings file.' + str(e1) )
+                # try and see if moving from older build
+                with open( './settings.json','r' ) as inputfile:
+                    self.options = json.load(inputfile)
+                try:
+                    _logger.info( '  .. moving settings file to /config/settings.json.. ')
+                    # create config folder if it doesn't exist
+                    os.makedirs('./config',exist_ok=True)
+                    # move settings.json to new config folder
+                    os.replace('./settings.json','./config/settings.json')
+                except:
+                    _logger.warning('Cannot rename old settings.json, leaving in place and using new file.')
+            except FileNotFoundError:
+                # No settings file defined, create a default file
+                _logger.info( '  .. creating new settings.json..' )
+                # create a camera array
+                self.options['camera'] = [
+                    {
+                        'video_src': 0,
+                        'display_width': '640',
+                        'display_height': '480',
+                        'default': 1
+                    } ]
+                # Create a printer array
+                self.options['printer'] = [
+                    { 
+                    'address': 'http://localhost',
+                    'password': 'reprap',
+                    'name': 'My Duet',
+                    'nickname': 'Default',
+                    'controller' : 'RRF/Duet', 
+                    'version': '',
+                    'default': 1,
+                    'tools': [
+                        { 
+                            'number': 0, 
+                            'name': 'Tool 0', 
+                            'nozzleSize': 0.4, 
+                            'offsets': [0,0,0] 
+                        } ]
+                    } ]
+                try:
+                    # set class attributes
+                    self._cameraWidth = int(self.options['camera'][0]['display_width'])
+                    self._cameraHeight = int(self.options['camera'][0]['display_height'])
+                    self._videoSrc = self.options['camera'][0]['video_src']
+                    # save default settings file
+                    with open( './config/settings.json','w' ) as outputfile:
+                        json.dump(self.options, outputfile)
+                except Exception as e1:
+                    errorMsg = 'Error reading user settings file.' + str(e1)
+                    _logger.critical( errorMsg )
+                    raise SystemExit( errorMsg )
+        _logger.info( '  .. reading configuration settings..' )
+        # Fetch defined cameras        
+        defaultCameraDefined = False
+        for source in self.options['camera']:
+            try:
+                if( source['default'] == 1 and defaultCameraDefined is False):
+                    camera_settings = source
+                    defaultCameraDefined = True
+                elif( defaultCameraDefined ):
+                    source['default'] = 0
+                continue
+            except KeyError as ke:
+                source['default'] = 0
+                continue
+        if( defaultCameraDefined is False ):
+            self.options['camera'][0]['default'] = 1
+            camera_settings = self.options['camera'][0]
+        self._cameraHeight = int( camera_settings['display_height'] )
+        self._cameraWidth = int( camera_settings['display_width'] )
+        self._videoSrc = camera_settings['video_src']
+        if( len(str(self._videoSrc)) == 1 or str(self._videoSrc) == "-1" ): 
+            self._videoSrc = int(self._videoSrc)
+        # Fetch defined machines
+        tempURL = self.options['printer'][0]['address']
+        defaultPrinterDefined = False
+        for machine in self.options['printer']:
+            # Find default printer first
+            try:
+                if( machine['default'] == 1 ):
+                    tempURL = machine['address']
+            except KeyError as ke:
+                # no default field detected - create a default if not already done
+                if( defaultPrinterDefined is False ):
+                    machine['default'] = 1
+                    defaultPrinterDefined = True
+                else:
+                    machine['default'] = 0
+            # Check if password doesn't exist
+            try:
+                temp = machine['password']
+            except KeyError:
+                machine['password'] = 'reprap'
+            # Check if nickname doesn't exist
+            try:
+                temp = machine['nickname']
+            except KeyError:
+                machine['nickname'] = machine['name']
+            # Check if controller doesn't exist
+            try:
+                temp = machine['controller']
+            except KeyError:
+                machine['controller'] = 'RRF/Duet'
+            # Check if version doesn't exist
+            try:
+                temp = machine['version']
+            except KeyError:
+                machine['version'] = ''
+            # Check if tools doesn't exist
+            try:
+                temp = machine['tools']
+            except KeyError:
+                machine['tools'] = [ { 'number': 0, 'name': 'Tool 0', 'nozzleSize': 0.4, 'offsets': [0,0,0] } ]
+        ( _errCode, _errMsg, self.printerURL ) = self.sanitizeURL(tempURL)
+        if _errCode > 0:
+            # invalid input
+            _logger.error( 'Invalid printer URL detected in settings.json' )
+            _logger.info( 'Defaulting to \"http://localhost\"...' )
+            self.printerURL = 'http://localhost'
 ### #  create GUI elements
 ### ## Menubar
         if not self.small_display:
@@ -2576,7 +2587,7 @@ class App(QMainWindow):
                 _logger.critical('Cannot load driver for this printer')
                 raise SystemExit('Cannot load driver for this printer')
             # load active driver
-            spec = importlib.util.spec_from_file_location("printerAPI","./"+driverSelect)
+            spec = importlib.util.spec_from_file_location("printerAPI","./drivers/"+driverSelect)
             driverModule = importlib.util.module_from_spec(spec)
             sys.modules[driverSelect[:-3]] = driverModule
             spec.loader.exec_module(driverModule)
@@ -2657,21 +2668,38 @@ class App(QMainWindow):
         _logger.info( '  .. connection successful!' )
 ### # save user settings.json
     def saveUserSettings(self):
-        global video_src
         try:
-            with open( 'settings.json','w' ) as outputfile:
-                json.dump(self.options, outputfile)
+            # get default camera from user settings
+            cameraSet = False
             new_video_src = 0
-            for machine in self.options['printer']:
+            for camera in self.options['camera']:
                 try:
-                    if( machine['default'] == 1 ):
-                        new_video_src = machine['video_src']
+                    if( camera['default'] == 1 and cameraSet is False ):
+                        new_video_src = camera['video_src']
                         self.video_thread.changeVideoSrc( newSrc=new_video_src )
-                        video_src = new_video_src
-                        break
-                except KeyError as ke:
-                    # No default camera defined
-                    pass
+                        self._videoSrc = new_video_src
+                        cameraSet = True
+                        continue
+                    elif( cameraSet ):
+                        # already have a default, unset other entries
+                        camera['default'] = 0
+                except KeyError:
+                    # No default camera defined, add key
+                    camera['default'] = 0
+                    continue
+            # check if there are no cameras set as default
+            if( cameraSet is False ):
+                # Set first camera entry to be the default source
+                self.options['camera'][0]['default'] = 1
+                try: 
+                    # activate default camera feed
+                    self.video_thread.changeVideoSrc( newSrc=new_video_src )
+                    self._videoSrc = new_video_src
+                except:
+                    _logger.critical( 'Cannot load default camera source.' )
+            # Save settings to file
+            with open( './config/settings.json','w' ) as outputfile:
+                json.dump(self.options, outputfile)
             _logger.info( 'User preferences saved to settings.json' )
             self.updateStatusbar( 'User preferences saved to settings.json' )
         except Exception as e1:
@@ -3251,11 +3279,16 @@ class App(QMainWindow):
         if export:
             # export JSON data to file
             try:
-                self.calibrationResults.append({ "printer":self.printerURL, "datetime":datetime.now() })
-                with open( 'output.json','w' ) as outputfile:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                exportFilename = './exports/output-'+ timestamp + '.json'
+                self.calibrationResults.append({ "printer":self.printerURL, "datetime":timestamp })
+                with open( exportFilename,'w' ) as outputfile:
                     json.dump(self.calibrationResults, outputfile)
-            except Exception as e1:
-                _logger.error( 'Failed to export alignment data:' + str(e1) )
+                successMsg = 'Alignment data exported to ' + exportFilename
+                _logger.info( successMsg )
+                self.updateStatusbar( successMsg )
+            except:
+                _logger.error( 'Failed to export alignment data:' + traceback.format_exc() )
                 self.updateStatusbar( 'Error exporting data, please check terminal for details.' )
 ### # parse raw data for analysis
     def parseData( self, rawData ):
@@ -3516,13 +3549,13 @@ class App(QMainWindow):
         if( self.crosshair or self.crosshair_alignment ):
             alpha = 0.8
             beta = 1-alpha
-            center = ( int(camera_width/2), int(camera_height/2) )
+            center = ( int(self._cameraWidth/2), int(self._cameraHeight/2) )
             overlayCircle = cv2.circle( 
                 cv_img.copy(), 
                 center, 
                 6, 
                 (0,255,0), 
-                int( camera_width/1.75 )
+                int( self._cameraWidth/1.75 )
             )
             overlayCircle = cv2.circle( 
                 overlayCircle.copy(), 
@@ -3540,8 +3573,8 @@ class App(QMainWindow):
                 1
             )
             cv_img = cv2.addWeighted(overlayCircle, beta, cv_img, alpha, 0)
-            cv_img = cv2.line(cv_img, (center[0],center[1]-int( camera_width/3 )), (center[0],center[1]+int( camera_width/3 )), (128, 128, 128), 1)
-            cv_img = cv2.line(cv_img, (center[0]-int( camera_width/3 ),center[1]), (center[0]+int( camera_width/3 ),center[1]), (128, 128, 128), 1)
+            cv_img = cv2.line(cv_img, (center[0],center[1]-int( self._cameraWidth/3 )), (center[0],center[1]+int( self._cameraWidth/3 )), (128, 128, 128), 1)
+            cv_img = cv2.line(cv_img, (center[0]-int( self._cameraWidth/3 ),center[1]), (center[0]+int( self._cameraWidth/3 ),center[1]), (128, 128, 128), 1)
             cv_img = cv2.addWeighted(cv_img, 1, cv_img, 0, 0)
         
         # Updates the image_label with a new opencv image
@@ -3636,7 +3669,33 @@ if __name__=='__main__':
     _logger.setLevel(logging.DEBUG)
 ### # file handler logging
     file_formatter = logging.Formatter( '%(asctime)s - %(levelname)s - %(name)s - %(funcName)s (%(lineno)d) - %(message)s' )
-    fh = logging.FileHandler( 'TAMV.log' )
+    # migrate logs to /log path
+    try:
+        os.makedirs('./log', exist_ok=True )
+    except:
+        print()
+        print( 'Cannot create \"./log folder.' )
+        print( 'Please create this folder manually and restart TAMV' )
+        raise SystemExit('Cannot retrieve log path.')
+    if( os.path.exists('./TAMV.log') ):
+        if( os.path.exists('./log/TAMV.log')):
+            print()
+            print('Deleting old log file ./TAMV.log..')
+            try:
+                os.remove('./TAMV.log')
+            except:
+                print( 'Cannot delete old log file \"./TAMV.log\", ignoring it..' )
+                print( 'Log file now located in \"./log/TAMV.log\"' )
+        else:
+            try:
+                print()
+                print( 'Moving log file to \"./log/TAMV.log\"..' )
+                os.replace( './TAMV.log','./log/TAMV.log' )
+            except:
+                print( 'Unknown OS error while moving log file to new folder.' )
+                print( 'Please move \"./TAMV.log\" to \"./log/TAMV.log\" and restart TAMV.')
+                raise SystemExit('Cannot move log file.')
+    fh = logging.FileHandler( './log/TAMV.log' )
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(file_formatter)
     _logger.addHandler(fh)

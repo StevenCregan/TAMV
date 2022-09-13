@@ -19,7 +19,7 @@
 # TAMV Beta in Action
 We've got a short walkthrough of TAMV in operation up on YouTube, and there you can see a real-time setup and alignment for a 3 tool printer. Click on the image to head over there!
 <p align="center">
-<a href="https://youtu.be/1nGc_hFzK0s?t=5"><img src="video_cap.png">
+<a href="https://youtu.be/1nGc_hFzK0s?t=5"><img src="./resources/video_cap.png">
 </p>
 
 _[back to top](#table-of-contents)_

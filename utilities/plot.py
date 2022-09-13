@@ -13,14 +13,14 @@ import math
 
 def init():
     parser = argparse.ArgumentParser(description='Program to allign multiple tools on Duet based printers, using machine vision.', allow_abbrev=False)
-    parser.add_argument('-filename',type=str,nargs=1,default=['./output.json'],help='Path and filename of data file to process for plotting. Can be a relative or an absolute path. Default is \"./output.json\".')
+    parser.add_argument('-filename',type=str,nargs=1,default=['./exports/output.json'],help='Path and filename of data file to process for plotting. Can be a relative or an absolute path. Default is \"./output.json\".')
     
     args=vars(parser.parse_args())
     inputFilename = args['filename'][0]
     matplotlib.use('Qt5Agg',force=True)
     return( inputFilename )
 
-def loadDataFile( filename="./output.json" ):
+def loadDataFile( filename="./exports/output.json" ):
     try:
         with open(filename,"r") as text_file:
             data = text_file.read().replace('\n', '')

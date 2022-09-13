@@ -19,7 +19,7 @@ import datetime
 import time
 
 try: 
-    import DuetWebAPI as DWA
+    import drivers.DuetWebAPI as DWA
 except ImportError:
     print("Python Library Module 'DuetWebAPI.py' is required. ")
     print("Obtain from https://github.com/DanalEstes/DuetWebAPI ")

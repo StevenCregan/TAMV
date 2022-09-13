@@ -4,5 +4,7 @@
 *.pyc
 **/__pycache__/ 
 *.vscode
-
 *.log
+**/log/
+**/config/
+**/exports/
