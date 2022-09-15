@@ -224,7 +224,7 @@ class printerAPI:
     #   - NONE
     #
     # Returns: 
-    #   - tuple of floats: { 'X': 0.000 , 'Y': 0.000 , 'Z': 0.000 }
+    #   - tuple of 3 decimal places precise floats: { 'X': 0.000 , 'Y': 0.000 , 'Z': 0.000 }
     #
     # Raises: 
     #   - CoordinatesException: when cannot determine machine status
@@ -236,6 +236,7 @@ class printerAPI:
             if failed:
                 raise CoordinatesException("Unknown duet controller.")
             else:
+                # NOTE: round results to a maximum of 3 decimals places
                 return( {'X': 0.000, 'Y': 0.000, 'Z': 0.000 } )
         except CoordinatesException as ce1:
             _logger.critical(str(ce1))

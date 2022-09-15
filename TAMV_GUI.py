@@ -14,6 +14,7 @@
 #
 
 # Imports
+from typing import Type
 from PyQt5.QtWidgets import (
     QAction, QApplication, QCheckBox, QComboBox, QDesktopWidget,
     QDialog, QGridLayout, QGroupBox, QHBoxLayout, QInputDialog,
@@ -73,6 +74,7 @@ _moveSpeed = 6000
 # Debug window dialog box
 class DebugDialog(QDialog):
     def __init__(self,parent=None, message='', geometry=None ):
+        _logger.debug('*** calling DebugDialog.__init__')
         super(DebugDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'Debug Information' )
@@ -95,34 +97,33 @@ class DebugDialog(QDialog):
         else:
             temp_text = message
         self.textarea.setText(temp_text)
+        _logger.debug('*** exiting DebugDialog.__init__')
     def closeEvent(self, event):
+        _logger.debug('*** calling DebugDialog.closeEvent')
         self.parent().debugGeometry = self.saveGeometry()
+        _logger.debug('*** exiting DebugDialog.closeEvent')
         super( DebugDialog, self ).closeEvent(event)
-
 
 ##############################################################################################################################################################
 # Configuration settings dialog box
 class SettingsDialog(QDialog):
     # add signal to trigger saving settings to file
     update_settings = pyqtSignal(object)
-
     def __init__(self,parent=None, addPrinter=False, geometry=None ):
+        _logger.debug('*** calling SettingsDialog.__init__')
         # Set up settings window
         super(SettingsDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'TAMV Configuration Settings' )
-        
         # Restore geometry if available
         if( geometry is not None ):
             self.restoreGeometry(geometry)
         # Fetch settings object from parent
         self.settingsObject = copy.deepcopy(self.parent().options)
         self.originalSettingsObject = copy.deepcopy(self.parent().options)
-        
         # Set layout details
         self.layout = QVBoxLayout()
         self.layout.setSpacing(3)
-        
         ############# TAB SETUP #############
         # Create tabs layout
         self.tabs = QTabWidget()
@@ -130,29 +131,24 @@ class SettingsDialog(QDialog):
         self.settingsTab = QWidget()
         self.settingsTab.layout = QVBoxLayout()
         self.settingsTab.setLayout( self.settingsTab.layout )
-        
         # Tab 2: Cameras
         self.camerasTab = QWidget()
         self.camerasTab.layout = QVBoxLayout()
         self.camerasTab.setLayout( self.camerasTab.layout )
-        
         # add tabs to tabs layout
         self.tabs.addTab( self.settingsTab, 'Machines' )
         if( addPrinter is False ):
             self.tabs.addTab( self.camerasTab, 'Cameras' )
-        
         # Add tabs layout to window
         self.layout.addWidget(self.tabs)
         # apply layout
         self.setLayout( self.layout )
-        
         ############# POPULATE TABS
         # Create camera items
         if( addPrinter is False ):
             self.createCameraItems()
         # Create machine items
         self.createMachineItems(newPrinter=addPrinter)
-        
         ############# MAIN BUTTONS
         # Save button
         if( addPrinter is False ):
@@ -168,30 +164,29 @@ class SettingsDialog(QDialog):
         self.close_button.setToolTip( 'Cancel changes and return to main program.' )
         self.close_button.clicked.connect(self.close)
         self.close_button.setObjectName( 'terminate' )
-        
         # WINDOW BUTTONS
         self.layout.addWidget(self.save_button)
         self.layout.addWidget(self.close_button)
-        
         # OK Cancel buttons
         #self.layout.addWidget(self.buttonBox)
-        pass
-
+        _logger.debug('*** exiting SettingsDialog.__init__')
     def createCameraItems( self ):
+        _logger.debug('*** calling SettingsDialog.createCameraItems')
         ############# CAMERAS TAB #############
         # Get current camera settings from video thread
         try:
+            #HBHBHBHB DEBUG: this may cause issues
             (brightness_input, contrast_input, saturation_input, hue_input) = self.parent().video_thread.getProperties()
             # Get current source from global variable
         except Exception:
             self.updateStatusbar( 'Error fetching camera parameters.' )
-            _logger.error( 'Camera Error 0x00: \n' + traceback.format_exc() )
-    
+            _logger.error( 'createCameraItems error: \n' + traceback.format_exc() )
         ############# CAMERA TAB: ITEMS
         # Camera Combobox
         self.camera_combo = QComboBox()
         for camera in self.settingsObject['camera']:
             if( camera['default'] == 1 ):
+                #HBHBHBHB DEBUG: this may cause issues
                 camera_description = '* ' + str(self.parent()._videoSrc) + ': ' \
                     + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_WIDTH))) \
                     + 'x' + str(int(self.parent().video_thread.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) + ' @ ' \
@@ -199,14 +194,13 @@ class SettingsDialog(QDialog):
             else:
                 camera_description = str(camera['video_src']) + ': ' + str(int(camera['display_width'])) + 'x' + str(int(camera['display_height']))
             self.camera_combo.addItem(camera_description)
-        
         #HBHBHBHB: TODO need to pass actual video source string object from parameter helper function!!!
         #self.camera_combo.currentIndexChanged.connect(self.parent().video_thread.changeVideoSrc)
-        
         # Get cameras button
         self.camera_button = QPushButton( 'Get cameras' )
         self.camera_button.clicked.connect(self.getCameras)
         if self.parent().video_thread.alignment:
+            #HBHBHBHB DEBUG: this may cause issues
             self.camera_button.setDisabled(True)
         else: self.camera_button.setDisabled(False)
         #self.getCameras()
@@ -250,7 +244,6 @@ class SettingsDialog(QDialog):
         self.reset_button = QPushButton("Reset to defaults")
         self.reset_button.setToolTip( 'Reset camera settings to defaults.' )
         self.reset_button.clicked.connect(self.resetDefaults)
-        
         # Camera drop-down
         self.camera_box = QGroupBox( 'Active camera source' )
         self.camerasTab.layout.addWidget(self.camera_box)
@@ -258,7 +251,6 @@ class SettingsDialog(QDialog):
         self.camera_box.setLayout(cmbox)
         cmbox.addWidget(self.camera_combo)
         cmbox.addWidget(self.camera_button)
-        
         # Brightness
         self.brightness_box =QGroupBox( 'Brightness' )
         self.camerasTab.layout.addWidget(self.brightness_box)
@@ -287,8 +279,9 @@ class SettingsDialog(QDialog):
         self.hue_box.setLayout(hvbox)
         hvbox.addWidget(self.hue_slider)
         hvbox.addWidget(self.hue_label)
-
+        _logger.debug('*** exiting SettingsDialog.createCameraItems')
     def createMachineItems( self, newPrinter=False ):
+        _logger.debug('*** calling SettingsDialog.createMachineItems')
         ############# MACHINES TAB #############
         if( newPrinter is False ):
             # Get machines as defined in the config
@@ -308,13 +301,11 @@ class SettingsDialog(QDialog):
             self.printer_combo.setCurrentIndex(self.defaultIndex)
             if( self.default_printer is None ):
                 self.default_printer = self.settingsObject['printer'][0]
-            
             # Create a layout for the printer combo box, and the add and delete buttons
             topbox = QGroupBox()
             toplayout = QHBoxLayout()
             topbox.setLayout( toplayout )
             toplayout.addWidget( self.printer_combo )
-
             # Add button
             self.add_printer_button = QPushButton('+')
             self.add_printer_button.setStyleSheet('background-color: green')
@@ -322,7 +313,6 @@ class SettingsDialog(QDialog):
             self.add_printer_button.setToolTip('Add a new profile..')
             self.add_printer_button.setFixedWidth(30)
             toplayout.addWidget(self.add_printer_button)
-
             # Delete button
             self.delete_printer_button = QPushButton('X')
             self.delete_printer_button.setStyleSheet('background-color: red')
@@ -330,16 +320,13 @@ class SettingsDialog(QDialog):
             self.delete_printer_button.setToolTip('Delete current profile..')
             self.delete_printer_button.setFixedWidth(30)
             toplayout.addWidget(self.delete_printer_button)
-            
             # add printer combo box to layout
             self.settingsTab.layout.addWidget( topbox )
-        
         # Printer default checkbox
         self.printerDefault = QCheckBox("&Default", self)
         if( newPrinter is False ):
             self.printerDefault.setChecked(True)
             self.printerDefault.stateChanged.connect( self.checkDefaults )
-
         # Printer nickname
         if( newPrinter is False ):
             self.printerNickname = QLineEdit( self.default_printer['nickname'] )
@@ -354,7 +341,6 @@ class SettingsDialog(QDialog):
         nnbox.addWidget(self.printerNickname_label)
         nnbox.addWidget(self.printerNickname)
         nnbox.addWidget(self.printerDefault)
-        
         # Printer address
         if( newPrinter is False ):
             self.printerAddress = QLineEdit( self.default_printer['address'] )
@@ -368,7 +354,6 @@ class SettingsDialog(QDialog):
         self.printerAddress_box.setLayout(adbox)
         adbox.addWidget(self.printerAddress_label)
         adbox.addWidget(self.printerAddress)
-        
         # Printer password
         if( newPrinter is False ):
             self.printerPassword = QLineEdit( self.default_printer['password'] )
@@ -379,7 +364,6 @@ class SettingsDialog(QDialog):
         self.printerPassword_label = QLabel('Password: ')
         adbox.addWidget( self.printerPassword_label )
         adbox.addWidget( self.printerPassword )
-
         # Printer controller
         self.controllerName = QComboBox()
         self.controllerName.setToolTip( 'Machine firmware family/category')
@@ -409,7 +393,6 @@ class SettingsDialog(QDialog):
         self.controllerName_box.setLayout(cnbox)
         cnbox.addWidget( self.controllerName_label, 0, 0, 1, 1, Qt.AlignRight )
         cnbox.addWidget( self.controllerName, 0, 1, 1, 2, Qt.AlignLeft )
-
         # Printer with rotated XY kinematics
         self.printerRotated = QCheckBox('Rotate XY')
         if( newPrinter is True ):
@@ -425,7 +408,6 @@ class SettingsDialog(QDialog):
                 self.default_printer['rotated'] = 0
                 self.printerRotated.setChecked(False)
         cnbox.addWidget( self.printerRotated, 0, 3, 1, 1, Qt.AlignRight )
-
         # Printer name
         if( newPrinter is False ):
             self.printerName = QLineEdit( self.default_printer['name'] )
@@ -443,7 +425,6 @@ class SettingsDialog(QDialog):
         self.printerName_box.setLayout(pnbox)
         pnbox.addWidget(self.printerName_label)
         pnbox.addWidget(self.printerName)
-        
         # Printer firmware version identifier
         if( newPrinter is False ):
             self.versionName = QLineEdit( self.default_printer['version'] )
@@ -461,7 +442,6 @@ class SettingsDialog(QDialog):
         self.versionName_box.setLayout(fnbox)
         fnbox.addWidget(self.versionName_label)
         fnbox.addWidget(self.versionName)
-        
         if( newPrinter is False ):
             # handle selecting a new machine from the dropdown
             self.printer_combo.activated.connect(self.refreshPrinters)
@@ -473,8 +453,9 @@ class SettingsDialog(QDialog):
             self.versionName.editingFinished.connect(self.updateAttributes)
             self.printerDefault.stateChanged.connect(self.updateAttributes)
             self.printerRotated.stateChanged.connect(self.updateAttributes)
-
+        _logger.debug('*** exiting SettingsDialog.createMachineItems')
     def checkDefaults( self ):
+        _logger.debug('*** calling SettingsDialog.checkDefaults')
         if( self.printerDefault.isChecked() ):
             index = self.printer_combo.currentIndex()
             for i,machine in enumerate(self.settingsObject['printer']):
@@ -487,8 +468,9 @@ class SettingsDialog(QDialog):
             index = self.printer_combo.currentIndex()
             if( index > -1 ):
                 self.printer_combo.setItemText(self.printer_combo.currentIndex(),self.settingsObject['printer'][self.printer_combo.currentIndex()]['nickname'])
-
+        _logger.debug('*** exiting SettingsDialog.checkDefaults')
     def addProfile(self):
+        _logger.debug('*** calling SettingsDialog.addProfile')
         # Create a new printer profile object
         newPrinter = { 
             'address': '',
@@ -522,8 +504,9 @@ class SettingsDialog(QDialog):
         self.printer_combo.addItem('New printer..')
         self.printer_combo.setCurrentIndex( len(self.settingsObject['printer'])-1 )
         self.refreshPrinters( self.printer_combo.currentIndex() )
-
+        _logger.debug('*** exiting SettingsDialog.addProfile')
     def deleteProfile( self ):
+        _logger.debug('*** calling SettingsDialog.deleteProfile')
         index = self.printer_combo.currentIndex()
         if( self.settingsObject['printer'][index]['default'] == 1 ):
             wasDefault = True
@@ -559,9 +542,9 @@ class SettingsDialog(QDialog):
             self.printer_combo.setCurrentIndex(0)
             self.delete_printer_button.setDisabled(True)
             self.delete_printer_button.setStyleSheet('background-color: none')
-        pass
-
+        _logger.debug('*** exiting SettingsDialog.deleteProfile')
     def refreshPrinters( self, index ):
+        _logger.debug('*** calling SettingsDialog.refreshPrinters')
         if( index >= 0 ):
             if( len(self.settingsObject['printer'][index]['address']) > 0 ):
                 self.printerAddress.setText(self.settingsObject['printer'][index]['address'])
@@ -601,8 +584,9 @@ class SettingsDialog(QDialog):
                 self.printerRotated.setChecked(True)
             else:
                 self.printerRotated.setChecked(False)
-
+        _logger.debug('*** exiting SettingsDialog.refreshPrinters')
     def updateAttributes( self ):
+        _logger.debug('*** calling SettingsDialog.updateAttributes')
         index = self.printer_combo.currentIndex()
         if( index > -1 ):
             self.settingsObject['printer'][index]['address'] = self.printerAddress.text()
@@ -619,11 +603,11 @@ class SettingsDialog(QDialog):
                 self.settingsObject['printer'][index]['rotated'] = 1
             else:
                 self.settingsObject['printer'][index]['rotated'] = 0
-
+        _logger.debug('*** exiting SettingsDialog.updateAttributes')
     def resetDefaults(self):
+        _logger.debug('*** calling SettingsDialog.resetDefaults')
         self.parent().video_thread.resetProperties()
         (brightness_input, contrast_input, saturation_input, hue_input) = self.parent().video_thread.getProperties()
-        
         brightness_input = int(brightness_input)
         contrast_input = int(contrast_input)
         saturation_input = int(saturation_input)
@@ -636,40 +620,45 @@ class SettingsDialog(QDialog):
         self.saturation_label.setText(str(saturation_input))
         self.hue_slider.setValue(hue_input)
         self.hue_label.setText(str(hue_input))
-
+        _logger.debug('*** exiting SettingsDialog.resetDefaults')
     def changeBrightness(self):
+        _logger.debug('*** calling SettingsDialog.changeBrightness')
         parameter = int(self.brightness_slider.value())
         try:
             self.parent().video_thread.setProperty(brightness=parameter)
         except:
             None
         self.brightness_label.setText(str(parameter))
-
+        _logger.debug('*** exiting SettingsDialog.changeBrightness')
     def changeContrast(self):
+        _logger.debug('*** calling SettingsDialog.changeContrast')
         parameter = int(self.contrast_slider.value())
         try:
             self.parent().video_thread.setProperty(contrast=parameter)
         except:
             None
         self.contrast_label.setText(str(parameter))
-
+        _logger.debug('*** exiting SettingsDialog.changeContrast')
     def changeSaturation(self):
+        _logger.debug('*** calling SettingsDialog.changeSaturation')
         parameter = int(self.saturation_slider.value())
         try:
             self.parent().video_thread.setProperty(saturation=parameter)
         except:
             None
         self.saturation_label.setText(str(parameter))
-
+        _logger.debug('*** exiting SettingsDialog.changeSaturation')
     def changeHue(self):
+        _logger.debug('*** calling SettingsDialog.changeHue')
         parameter = int(self.hue_slider.value())
         try:
             self.parent().video_thread.setProperty(hue=parameter)
         except:
             None
         self.hue_label.setText(str(parameter))
-
+        _logger.debug('*** exiting SettingsDialog.changeHue')
     def getCameras(self):
+        _logger.debug('*** calling SettingsDialog.getCameras')
         #HBHBHBHB: TODO handle multiple camera profiles
         # checks the first 6 indexes.
         i = 6
@@ -706,8 +695,9 @@ class SettingsDialog(QDialog):
         for camera in _cameras:
             self.camera_combo.addItem(camera)
         self.camera_combo.setCurrentText(original_camera_description)
-
+        _logger.debug('*** exiting SettingsDialog.getCameras')
     def updatePrinterObjects(self):
+        _logger.debug('*** calling SettingsDialog.updatePrinterObjects')
         defaultSet = False
         multipleDefaults = False
         defaultMessage = "More than one connection is set as the default option.\n\nPlease review the connections for:\n\n"
@@ -758,9 +748,10 @@ class SettingsDialog(QDialog):
             ]
             pass
         self.update_settings.emit( self.settingsObject )
+        _logger.debug('*** exiting SettingsDialog.updatePrinterObjects')
         self.accept()
-
     def saveNewPrinter( self ):
+        _logger.debug('*** calling SettingsDialog.saveNewPrinter')
         _logger.info('Saving printer information..')
         newPrinter = { 
                 'address': self.printerAddress.text(),
@@ -786,11 +777,13 @@ class SettingsDialog(QDialog):
         self.settingsObject['printer'].append( newPrinter )
         self.update_settings.emit( self.settingsObject )
         self.accept()
-
+        _logger.debug('*** exiting SettingsDialog.saveNewPrinter')
     def closeEvent(self, event):
+        _logger.debug('*** calling SettingsDialog.closeEvent')
         self.parent().updateStatusbar( 'Changes to settings discarded.' )
         self.settingsObject = self.originalSettingsObject
         self.parent().settingsGeometry = self.saveGeometry()
+        _logger.debug('*** exiting SettingsDialog.closeEvent')
         super( SettingsDialog, self ).closeEvent(event)
 
 ##############################################################################################################################################################
@@ -800,22 +793,19 @@ class ConnectionDialog(QDialog):
     new_printer = pyqtSignal()
     # signal to connect to machine
     connect_printer = pyqtSignal(int)
-
     def __init__(self,parent=None, addPrinter=False ):
+        _logger.debug('*** calling ConnectionDialog.__init__')
         # Set up settings window
         super(ConnectionDialog,self).__init__(parent=parent)
         self.setWindowFlag(Qt.WindowContextHelpButtonHint,False)
         self.setWindowTitle( 'Connect to a machine' )
         self.setWindowModality( Qt.ApplicationModal )
-        
         # Fetch settings object from parent
         self.csettingsObject = copy.deepcopy(self.parent().options)
-
         # Set layout details
         self.layout = QVBoxLayout()
         self.layout.setSpacing(3)
         self.setLayout( self.layout )
-
         # Get machines as defined in the config
         # Printer combo box
         self.cprinter_combo = QComboBox()
@@ -829,14 +819,11 @@ class ConnectionDialog(QDialog):
         # handle selecting a new machine
         # set default printer as the selected index
         self.cprinter_combo.setCurrentIndex(self.cdefault_printer['index'])
-
         # add final option to add a new printer
         self.cprinter_combo.addItem('+++ Add a new machine..')
         self.cprinter_combo.currentIndexChanged.connect(self.addPrinter)
-
         # add printer combo box to layout
         self.layout.addWidget( self.cprinter_combo )
-
         self.csave_button = QPushButton( 'Connect..')
         self.csave_button.clicked.connect(self.startConnection)
         self.csave_button.setObjectName( 'active' )
@@ -845,12 +832,12 @@ class ConnectionDialog(QDialog):
         self.cclose_button.setToolTip( 'Cancel changes and return to main program.' )
         self.cclose_button.clicked.connect(self.reject)
         self.cclose_button.setObjectName( 'terminate' )
-
         # WINDOW BUTTONS
         self.layout.addWidget(self.csave_button)
         self.layout.addWidget(self.cclose_button)
-
+        _logger.debug('*** exiting ConnectionDialog.__init__')
     def startConnection( self ):
+        _logger.debug('*** calling ConnectionDialog.startConnection')
         index = self.cprinter_combo.currentIndex()
         if( index < len(self.csettingsObject['printer'])):
             self.connect_printer.emit(index)
@@ -858,14 +845,14 @@ class ConnectionDialog(QDialog):
         else:
             self.new_printer.emit()
             self.reject()
-
+        _logger.debug('*** exiting ConnectionDialog.startConnection')
     def addPrinter( self, index ):
+        _logger.debug('*** calling ConnectionDialog.addPrinter')
         if( index == len(self.csettingsObject['printer'])):
             self.csave_button.setText('Create new profile..')
         else:
             self.csave_button.setText('Connect..')
-
-
+        _logger.debug('*** exiting ConnectionDialog.addPrinter')
 ##############################################################################################################################################################
 # Overlay labels for status bar right corner
 class OverlayLabel(QLabel):
@@ -897,15 +884,18 @@ class CalibrateNozzles(QThread):
     detection_error = pyqtSignal(str)
     result_update = pyqtSignal(object)
     crosshair_display = pyqtSignal(bool)
+    crosshair_cp_display = pyqtSignal(bool)
     update_cpLabel = pyqtSignal(object)
+    update_GUI = pyqtSignal()
+    display_standby = pyqtSignal()
     # State flags
     alignment = False
     _running = False
     display_crosshair = False
     detection_on = False
     align_endstop = False
-
     def __init__( self, parentTh=None, numTools=0, cycles=1, align=False ):
+        _logger.debug('*** calling CalibrateNozzles.__init__')
         super(QThread,self).__init__(parent=parentTh)
         # transformation matrix
         self.transform_matrix = []
@@ -920,11 +910,9 @@ class CalibrateNozzles(QThread):
         self.cycles = cycles
         self.alignment = align
         self.message_update.emit( 'Detector created, waiting for tool..' )
-
         # start with detection off
         self.display_crosshair = False
         self.detection_on = False
-
         # Video Parameters
         self.brightness_default = 0
         self.contrast_default = 0
@@ -934,7 +922,6 @@ class CalibrateNozzles(QThread):
         self.contrast = -1
         self.saturation = -1
         self.hue = -1
-
         # Start Video feed
         _logger.debug( 'Starting video: ' + str(self.parent()._cameraWidth)+'x'+str(self.parent()._cameraHeight) )
         self.cap = cv2.VideoCapture(self.parent()._videoSrc)
@@ -946,7 +933,6 @@ class CalibrateNozzles(QThread):
         self.contrast_default = self.cap.get(cv2.CAP_PROP_CONTRAST)
         self.saturation_default = self.cap.get(cv2.CAP_PROP_SATURATION)
         self.hue_default = self.cap.get(cv2.CAP_PROP_HUE)
-
         self.ret, self.cv_img = self.cap.read()
         if self.ret:
             local_img = self.cv_img
@@ -960,13 +946,16 @@ class CalibrateNozzles(QThread):
             self.ret, self.cv_img = self.cap.read()
             local_img = self.cv_img
             self.change_pixmap_signal.emit(local_img)
-
+        _logger.debug('*** exiting CalibrateNozzles.__init__')
     def toggleXray(self):
+        _logger.debug('*** calling CalibrateNozzles.toggleXray')
         if self.xray:
             self.xray = False
-        else: self.xray = True
-
-    def toggleLoose(self):
+        else: 
+            self.xray = True
+        _logger.debug('*** exiting CalibrateNozzles.toggleXray')
+    def toggleRelaxed(self):
+        _logger.debug('*** calling CalibrateNozzles.toggleRelaxed')
         self.detector_changed = True
         if self.loose:
             self.detectParamsStandard()
@@ -974,13 +963,14 @@ class CalibrateNozzles(QThread):
         else: 
             self.detectParamsLoose()
             self.loose = True
-
+        _logger.debug('*** exiting CalibrateNozzles.toggleRelaxed')
     def toggleAlgorithm(self):
+        _logger.debug('*** calling CalibrateNozzles.toggleAlgorithm')
         if self.altProcessor:
             self.altProcessor = False
         else:
             self.altProcessor = True
-
+        _logger.debug('*** exiting CalibrateNozzles.toggleAlgorithm')
     def setProperty(self,brightness=-1, contrast=-1, saturation=-1, hue=-1):
         try:
             if int(brightness) >= 0:
@@ -1006,14 +996,16 @@ class CalibrateNozzles(QThread):
                 self.cap.set(cv2.CAP_PROP_HUE,self.hue)
         except Exception as h1:
             _logger.warning( 'Hue exception: '  + str(h1) )
-
     def getProperties(self):
+        _logger.debug('*** calling CalibrateNozzles.getProperties')
+        _logger.debug('*** exiting CalibrateNozzles.getProperties')
         return (self.brightness_default, self.contrast_default, self.saturation_default,self.hue_default)
-
     def resetProperties(self):
+        _logger.debug('*** calling CalibrateNozzles.resetProperties')
         self.setProperty(brightness=self.brightness_default, contrast = self.contrast_default, saturation=self.saturation_default, hue=self.hue_default)
-
+        _logger.debug('*** exiting CalibrateNozzles.resetProperties')
     def detectParamsStandard(self):
+        _logger.debug('*** calling CalibrateNozzles.detectParamsStandard')
         # Thresholds
         self.detect_th1 = 1
         self.detect_th2 = 50
@@ -1033,9 +1025,10 @@ class CalibrateNozzles(QThread):
         # Inertia
         self.detect_filterByInertia = True
         self.detect_minInertiaRatio = 0.3
+        _logger.debug('*** exiting CalibrateNozzles.detectParamsStandard')
         return
-
     def detectParamsLoose(self):
+        _logger.debug('*** calling CalibrateNozzles.detectParamsLoose')
         # Thresholds
         self.detect_th1 = 1
         self.detect_th2 = 50
@@ -1055,19 +1048,18 @@ class CalibrateNozzles(QThread):
         # Inertia
         self.detect_filterByInertia = True
         self.detect_minInertiaRatio = 0.3
+        _logger.debug('*** exiting CalibrateNozzles.detectParamsLoose')
         return
-
     def run(self):
-        _logger.debug( 'Alignment thread starting' )
+        _logger.debug('*** calling CalibrateNozzles.run')
         self.createDetector()
-        _logger.debug( 'Alignment detector created.' )
         while True:
             if self.detection_on:
                 if self.alignment:
                     _logger.debug( 'Alignment active' )
                     try:
                         _logger.debug( 'Setting parameters for nozzle detection alignment algorithm..' )
-                        # HB: Detector stuff
+                        # Process runtime detector changes
                         if self.detector_changed:
                             self.createDetector()
                             self.detector_changed = False
@@ -1080,12 +1072,12 @@ class CalibrateNozzles(QThread):
                                 # for tool in range(self.parent().num_tools):
                                     _logger.debug( 'Processing events before tool' )
                                     # process GUI events
-                                    app.processEvents()
+                                    self.display_standby.emit()
+                                    self.update_GUI.emit()
                                     # Update status bar
                                     self.status_update.emit( 'Calibrating T' + str(ptool['number']) + ', cycle: ' + str(rep+1) + '/' + str(self.cycles))
                                     # Load next tool for calibration
                                     _logger.debug( 'Sending tool pickup to printer..' )
-                                    self.parent().displayStandby()
                                     _logger.debug( str(self.parent().printer.getJSON()) )
                                     self.parent().printer.loadTool(int(ptool['number']))
                                     # Move tool to CP coordinates
@@ -1106,12 +1098,11 @@ class CalibrateNozzles(QThread):
                                     while self.parent().printer.getStatus() not in 'idle':
                                         _logger.debug( 'XX - Waiting for printer idle status' )
                                         # process GUI events
-                                        app.processEvents()
+                                        self.update_GUI.emit()
                                         _logger.debug( 'XX - Fetching frame.' )
                                         self.ret, self.cv_img = self.cap.read()
                                         if self.ret:
                                             local_img = self.cv_img
-                                            # self.change_pixmap_signal.emit(local_img)
                                         else:
                                             _logger.debug( 'XX - Video source invalid, resetting.' )
                                             self.cap.open(self.parent()._videoSrc)
@@ -1121,30 +1112,30 @@ class CalibrateNozzles(QThread):
                                             #self.cap.set(cv2.CAP_PROP_FPS,25)
                                             self.ret, self.cv_img = self.cap.read()
                                             local_img = self.cv_img
-                                            # self.change_pixmap_signal.emit(local_img)
                                             continue
                                     # Update message bar
                                     self.message_update.emit( 'Searching for nozzle..' )
                                     # Process runtime algorithm changes
-                                    
-                                    # Check if detection parameters changed from user input
                                     if self.detector_changed:
                                         self.createDetector()
                                         self.detector_changed = False
                                     # Analyze frame for blobs
-                                    _logger.debug( 'alignment analyzing frame..' )
-                                    (c, transform, mpp) = self.calibrateTool(int(ptool['number']), rep)
-                                    _logger.debug( 'alignment analyzing frame complete' )
-                                    # process GUI events
-                                    app.processEvents()
-                                    # apply offsets to machine
-                                    self.parent().printer.setToolOffsets( tool=str(ptool['number']), X=str(c['X']), Y=str(c['Y']) )
+                                    _logger.debug( 'Analyzing frame..' )
+                                    try:
+                                        (c, transform, mpp) = self.calibrateTool(int(ptool['number']), rep)
+                                        _logger.debug( 'Analysis complete' )
+                                        # process GUI events
+                                        self.update_GUI.emit()
+                                        # apply offsets to machine
+                                        self.parent().printer.setToolOffsets( tool=str(ptool['number']), X=str(c['X']), Y=str(c['Y']) )
+                                    except TypeError:
+                                        _logger.debug('Calibration cancelled.')
                             # signal end of execution
                             self._running = False
                         # Update status bar
                         self.status_update.emit( 'Calibration complete: Resetting machine.' )
                         # Update debug window with results
-                        self.parent().displayStandby()
+                        self.display_standby.emit()
                         self.parent().printer.unloadTools()
                         # check kinematics rotation
                         if( self.parent().activePrinter['rotated'] == 0 ):
@@ -1160,15 +1151,15 @@ class CalibrateNozzles(QThread):
                         self.status_update.emit( 'Calibration complete: Done.' )
                         self.alignment = False
                         self.detection_on = False
-                        self.display_crosshair = False
-                        self.crosshair_display.emit(self.display_crosshair)
+                        self.crosshair_display.emit(False)
+                        self.crosshair_cp_display.emit(False)
                         self._running = False
                         self.calibration_complete.emit()
                     except Exception:
                         self.alignment = False
                         self.detection_on = False
-                        self.display_crosshair = False
-                        self.crosshair_display.emit(self.display_crosshair)
+                        self.crosshair_display.emit(False)
+                        self.crosshair_cp_display.emit(False)
                         self._running = False
                         self.detection_error.emit( 'Error 0x00: unhandled exception' )
                         _logger.error( 'Error 0x00: \n' + traceback.format_exc() )
@@ -1187,20 +1178,19 @@ class CalibrateNozzles(QThread):
                             # Run detection and update output
                             self.analyzeFrame()
                             # process GUI events
-                            app.processEvents()
+                            self.update_GUI.emit()
                     except Exception:
                         self._running = False
                         self.detection_error.emit( 'Error 0x01: unhandled exception' )
                         _logger.error( 'Error 0x01: \n' + traceback.format_exc() )
                         self.cap.release()
             elif self.align_endstop:
+                # Automated endstop alignment
                 _logger.debug( 'Starting auto-CP detection..' )
                 self.status_update.emit( 'Starting auto-CP detection..' )
                 self.parent().printer.unloadTools()
                 self._running = True
                 while self._running:
-                    # process GUI events
-                    app.processEvents()
                     # Update status bar
                     self.status_update.emit( 'Self-calibrating CP...' )
                     # Unload tool to start and restore starting position
@@ -1209,10 +1199,10 @@ class CalibrateNozzles(QThread):
                     self.message_update.emit( 'Searching for endstop..' )
                     # Process runtime algorithm changes
                     # Analyze frame for blobs
+                    self.crosshair_cp_display.emit(True)
                     self.calibrateTool(ctool='endstop', rep=1)
-                    # process GUI events
-                    app.processEvents()
                     _logger.debug( 'Ending CP Auto calibration.' )
+                    self.crosshair_cp_display.emit(False)
                     # Capture CP coordinates 
                     self.cp_coords = self.parent().printer.getCoordinates()
                     self._running = False
@@ -1220,7 +1210,9 @@ class CalibrateNozzles(QThread):
                 # Update GUI elements
                 self.status_update.emit( 'CP: X' + str(self.cp_coords['X']) + ' Y' + str(self.cp_coords['Y']) )
                 self.display_crosshair = False
-                self.crosshair_display.emit(self.display_crosshair)
+                # Show CP crosshair
+                self.crosshair_display.emit(False)
+                self.crosshair_cp_display.emit(True)
                 self.update_cpLabel.emit(self.cp_coords)
                 # Send log output
                 _logger.info( '  .. set Control Point: X' + str(self.cp_coords['X']) + ' Y' + str(self.cp_coords['Y']) )
@@ -1258,31 +1250,31 @@ class CalibrateNozzles(QThread):
                                 local_img = self.cv_img
                                 self.change_pixmap_signal.emit(local_img)
                             continue
-                        app.processEvents()
+                        self.update_GUI.emit()
                     except Exception:
                         self.status_update( 'Error 0x02: Unhandled exception' )
                         _logger.error( 'Error 0x02: \n' + traceback.format_exc() )
                         self.cap.release()
                         self.detection_on = False
                         self._running = False
-                        exit()
-                    app.processEvents()
-                app.processEvents()
+                        raise SystemExit( 'Error 0x02: Unhandled exception' )
+                    self.update_GUI.emit()
+                self.update_GUI.emit()
                 continue
+        _logger.debug('*** exiting CalibrateNozzles.run')
         self.cap.release()
-
     def analyzeFrame(self):
-        _logger.debug( 'Starting analyzeFrame' )
+        _logger.debug('*** calling CalibrateNozzles.analyzeFrame')
         # Placeholder coordinates
         xy = [0,0]
         # Counter of frames with no circle.
         nocircle = 0
         # Random time offset
         rd = int(round(time.time()*1000))
-
         while True and self.detection_on:
             _logger.debug( 'Processing events.' )
-            app.processEvents()
+            #HBHBHBHB DEBUG: this may cause issues
+            self.update_GUI.emit()
             _logger.debug( 'Reading frame from camera.' )
             self.ret, self.frame = self.cap.read()
             _logger.debug( 'Frame loaded.' )
@@ -1310,12 +1302,10 @@ class CalibrateNozzles(QThread):
             #       gamma correction -> use Y channel from YUV -> GaussianBlur (7,7),6 -> adaptive threshold
             #   - Preprocessor algorithm 2:
             #       gamma correction -> change to greyscale -> apply binary triangle threshold to frame -> GaussianBlur (7,7),6
-
             # Adjust image gamma
             gammaInput = 1.2
             _logger.debug( 'adjusting image gamma levels' )
             self.frame = self.adjust_gamma(image=self.frame, gamma=gammaInput)
-
             # Check which preprocessor to use
             if( self.altProcessor is False ):
                 # Preprocessor 1
@@ -1334,8 +1324,6 @@ class CalibrateNozzles(QThread):
             _logger.debug( 'Image adjustment complete.' )
             target = [int(np.around(self.frame.shape[1]/2)),int(np.around(self.frame.shape[0]/2))]
             # Process runtime algorithm changes
-            
-            # HB: Detector stuff
             if self.detector_changed:
                 self.createDetector()
                 self.detector_changed = False
@@ -1400,14 +1388,16 @@ class CalibrateNozzles(QThread):
             rd = int(round(time.time() * 1000))
             #end the loop
             break
-        # and tell our parent.
+        # Return results
+        #HBHBHBHB TODO: add pause condition for manual failover here
         if self.detection_on:
             _logger.debug( 'Nozzle detection complete, exiting' )
+            _logger.debug('*** exiting CalibrateNozzles.analyzeFrame')
             return (xy, target, toolCoordinates, r)
         else:
             _logger.debug( 'AnaylzeFrame completed.' )
+            _logger.debug('*** exiting CalibrateNozzles.analyzeFrame')
             return
-
     def drawKeypoints( self, img, keypointsArray, color=(0,0,255) ):
         originalFrame = img.copy()
         for interest in keypointsArray:
@@ -1428,8 +1418,8 @@ class CalibrateNozzles(QThread):
             img = cv2.line( img, (x-5, y), (x+5, y), ( 255, 255, 255 ), 2 )
             img = cv2.line( img, (x, y-5), (x, y+5), ( 255, 255, 255 ), 2 )
         return( img )
-    
     def analyzeEndstop(self):
+        _logger.debug('*** calling CalibrateNozzles.analyzeEndstop')
         # Placeholder coordinates
         xy = [0,0]
         # Counter of frames with no circle.
@@ -1437,7 +1427,6 @@ class CalibrateNozzles(QThread):
         # Random time offset
         rd = int(round(time.time()*1000))
         while True:
-            app.processEvents()
             self.ret, self.frame = self.cap.read()
             if not self.ret:
                 # reset capture
@@ -1452,14 +1441,11 @@ class CalibrateNozzles(QThread):
             yuv = cv2.cvtColor(cleanFrame, cv2.COLOR_BGR2YUV)
             yuvPlanes = cv2.split(yuv)
             still = yuvPlanes[0]
-            
             black = np.zeros((still.shape[0],still.shape[1]), np.uint8)
             kernel = np.ones((5,5),np.uint8)
-
             img_blur = cv2.GaussianBlur(still, (9, 9), 3)
             img_canny = cv2.Canny(img_blur, 50, 190)
             img_dilate = cv2.morphologyEx(img_canny, cv2.MORPH_DILATE, kernel, iterations=3)
-
             cnt, hierarchy = cv2.findContours(img_dilate, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
             black = cv2.drawContours(black, cnt, -1, (255, 0, 255), -1)
             black = cv2.morphologyEx(black, cv2.MORPH_DILATE, kernel, iterations=2)
@@ -1478,15 +1464,18 @@ class CalibrateNozzles(QThread):
                         self.frame = cv2.circle(self.frame, center, 5, (255,0,255), 2)
                         self.change_pixmap_signal.emit(self.frame)
                         try:
+                            _logger.debug('*** exiting CalibrateNozzles.analyzeEndstop')
                             return ( center, self.parent().printer.getCoordinates() )
                         except:
+                            _logger.debug('*** exiting CalibrateNozzles.analyzeEndstop')
                             return None
             else:
-                self.parent().updateStatusbar( 'Cannot find endstop! Cancel.' )
+                self.status_update.emit( 'Cannot find endstop! Cancel.' )
                 self.change_pixmap_signal.emit(self.frame)
             continue
-
+        _logger.debug('*** exiting CalibrateNozzles.analyzeEndstop')
     def calibrateTool(self, ctool, rep):
+        _logger.debug('*** calling CalibrateNozzles.calibrateTool')
         # timestamp for caluclating tool calibration runtime
         self.startTime = time.time()
         # average location of keypoints in frame
@@ -1509,33 +1498,36 @@ class CalibrateNozzles(QThread):
         self.position_iterations = 5
         # calibration move set (0.5mm radius circle over 10 moves)
         self.calibrationCoordinates = [ [0,-0.5], [0.294,-0.405], [0.476,-0.155], [0.476,0.155], [0.294,0.405], [0,0.5], [-0.294,0.405], [-0.476,0.155], [-0.476,-0.155], [-0.294,-0.405] ]
-
         # Check if camera calibration matrix is already defined
         if len(self.transform_matrix) > 1:
             # set state flag to Step 2: nozzle alignment stage
             self.state = 200
             if str(ctool) not in "endstop":
                 self.parent().debugString += '\nCalibrating T'+str(ctool)+':C'+str(rep)+': '
-        
         # Space coordinates
         self.space_coordinates = []
         self.camera_coordinates = []
         self.calibration_moves = 0
-
+        #HBHBHBHB TODO: add pause condition for manual failover here
         while True:
             _logger.debug( 'Running calibrate tool..' )
             if str(ctool) not in "endstop":
-                (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
-                _logger.debug( 'Captured reference for tool alignment.' )
+                try:
+                    (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
+                    _logger.debug( 'Captured reference for tool alignment.' )
+                except TypeError:
+                    # catching analyzeFrame still running after cancelling
+                    _logger.debug('analyzeFrame was cancelled.')
+                    _logger.debug('*** exiting CalibrateNozzles.calibrateTool')
+                    return
             else:
                 (self.xy, self.tool_coordinates) = self.analyzeEndstop()
                 _logger.debug( 'Captured reference for endstop auto-alignment.' )
             # analyzeFrame has returned our target coordinates, average its location and process according to state
             self.average_location[0] += self.xy[0]
             self.average_location[1] += self.xy[1]
-            
             self.detect_count += 1
-
+            #HBHBHBHB TODO: add pause condition for manual failover here
             # check if we've reached our number of detections for average positioning
             if self.detect_count >= self.position_iterations:
                 # calculate average X Y position from detection
@@ -1545,10 +1537,17 @@ class CalibrateNozzles(QThread):
                 self.average_location = np.around(self.average_location,3)
                 # get another detection validated
                 if str(ctool) not in "endstop":
-                    (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
+                    try:
+                        (self.xy, self.target, self.tool_coordinates, self.radius) = self.analyzeFrame()
+                    except TypeError:
+                        _logger.debug('*** Tool calibration cancelled before move.')
+                        return
                 else:
-                    (self.xy, self.tool_coordinates) = self.analyzeEndstop()
-                
+                    try:
+                        (self.xy, self.tool_coordinates) = self.analyzeEndstop()
+                    except TypeError:
+                        _logger.debug('*** Endstop auto capture cancelled before move')
+                        return
                 #### Step 1: camera calibration and transformation matrix calculation
                 if self.state == 0:
                     _logger.info( '  .. calibrating camera..' )
@@ -1672,10 +1671,11 @@ class CalibrateNozzles(QThread):
                     # save position as previous position
                     self.oldxy = self.xy
                     if ( self.offsets[0] == 0.0 and self.offsets[1] == 0.0 ):
-                        _logger.debug( 'Updating GUI..' )
-                        self.parent().debugString += str(self.calibration_moves) + ' moves.\n'
-                        self.parent().printer.moveAbsolute( moveSpeed=13200 )
                         # Update GUI with progress
+                        _logger.debug( 'Updating GUI..' )
+                        self.status_update.emit( 'Calibration completed in ' + str(self.calibration_moves) + ' moves.' )
+                        self.message_update.emit( 'Tool calibrated, calculating offset..')
+                        self.parent().printer.moveAbsolute( moveSpeed=13200 )
                         # calculate final offsets and return results
                         if str(ctool) not in "endstop":
                             self.tool_offsets = self.parent().printer.getToolOffset(ctool)
@@ -1698,15 +1698,12 @@ class CalibrateNozzles(QThread):
                             _return['Y'] = final_y
                             _return['MPP'] = self.mpp
                             _return['time'] = np.around(time.time() - self.startTime,1)
-                            self.message_update.emit( 'Nozzle calibrated: offset coordinates X' + str(_return['X']) + ' Y' + str(_return['Y']) )
-                            self.parent().debugString += 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.\n'
                             self.message_update.emit( 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + ' seconds.' )
                             _logger.debug( 'T' + str(ctool) + ', cycle ' + str(rep+1) + ' completed in ' + str(_return['time']) + 's and ' + str(self.calibration_moves) + ' movements.' )
                             _logger.info( 'Tool ' + str(ctool) +' offsets are X' + str(_return['X']) + ' Y' + str(_return['Y']) )
                         else:
                             self.message_update.emit( 'CP auto-calibrated.' )
                         self.parent().printer.moveAbsolute( moveSpeed=13200 )
-
                         if str(ctool) not in "endstop":
                             _logger.debug( 'Generating G10 commands.' )
                             self.parent().debugString += 'G10 P' + str(ctool) + ' X' + string_final_x + ' Y' + string_final_y + '\n'
@@ -1714,9 +1711,10 @@ class CalibrateNozzles(QThread):
                             x_tableitem.setBackground(QColor(100,255,100,255))
                             y_tableitem = QTableWidgetItem(string_final_y)
                             y_tableitem.setBackground(QColor(100,255,100,255))
+                            #HBHBHBHB TODO: update tool data table
+                            #HBHBHBHB TODO: send data as signals
                             #self.parent().offsets_table.setItem(tool,0,x_tableitem)
                             #self.parent().offsets_table.setItem(tool,1,y_tableitem)
-
                             self.result_update.emit({
                                 'tool': str(ctool),
                                 'cycle': str(rep),
@@ -1724,20 +1722,26 @@ class CalibrateNozzles(QThread):
                                 'X': string_final_x,
                                 'Y': string_final_y
                             })
+                            _logger.debug('*** exiting CalibrateNozzles.calibrateTool')
                             return(_return, self.transform_matrix, self.mpp)
-                        else: return
+                        else: 
+                            _logger.debug('*** exiting CalibrateNozzles.calibrateTool')
+                            return
                     else:
                         self.state = 200
                         continue
                 self.avg = [0,0]
                 self.location = {'X':0,'Y':0}
                 self.count = 0
-
+        _logger.debug('*** exiting CalibrateNozzles.calibrateTool')
     def normalize_coords(self,coords):
+        _logger.debug('*** calling CalibrateNozzles.normalize_coords')
         xdim, ydim = self.parent()._cameraWidth, self.parent()._cameraHeight
-        return (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
-
+        returnValue = (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
+        _logger.debug('*** exiting CalibrateNozzles.normalize_coords')
+        return( returnValue )
     def least_square_mapping(self,calibration_points):
+        _logger.debug('*** calling CalibrateNozzles.least_square_mapping')
         # Compute a 2x2 map from displacement vectors in screen space to real space.
         n = len(calibration_points)
         real_coords, pixel_coords = np.empty((n,2)),np.empty((n,2))
@@ -1747,9 +1751,10 @@ class CalibrateNozzles(QThread):
         x,y = pixel_coords[:,0],pixel_coords[:,1]
         A = np.vstack([x**2,y**2,x * y, x,y,np.ones(n)]).T
         transform = np.linalg.lstsq(A, real_coords, rcond = None)
+        _logger.debug('*** exiting CalibrateNozzles.least_square_mapping')
         return transform[0], transform[1].mean()
-
     def getDistance(self, x1, y1, x0, y0 ):
+        _logger.debug('*** calling CalibrateNozzles.getDistance')
         x1_float = float(x1)
         x0_float = float(x0)
         y1_float = float(y1)
@@ -1757,44 +1762,42 @@ class CalibrateNozzles(QThread):
         x_dist = (x1_float - x0_float) ** 2
         y_dist = (y1_float - y0_float) ** 2
         retVal = np.sqrt((x_dist + y_dist))
-        return np.around(retVal,3)
-
+        returnVal = np.around(retVal,3)
+        _logger.debug('*** exiting CalibrateNozzles.getDistance')
+        return( returnVal )
     def stop(self):
+        _logger.debug('*** calling CalibrateNozzles.stop')
         self._running = False
         self.detection_on = False
         self.cap.release()
+        _logger.debug('*** exiting CalibrateNozzles.stop')
         self.exit()
-
     def createDetector(self):
+        _logger.debug('*** calling CalibrateNozzles.createDetector')
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
         # Thresholds
         params.minThreshold = self.detect_th1
         params.maxThreshold = self.detect_th2
         params.thresholdStep = self.detect_thstep
-
         # Area
         params.filterByArea = True         # Filter by Area.
         params.minArea = self.detect_minArea
         params.maxArea = self.detect_maxArea
-
         # Circularity
         params.filterByCircularity = True  # Filter by Circularity
         params.minCircularity = self.detect_minCircularity
         params.maxCircularity= 1
-
         # Convexity
         params.filterByConvexity = True    # Filter by Convexity
         params.minConvexity = 0.3
         params.maxConvexity = 1
-
         # Inertia
         params.filterByInertia = True      # Filter by Inertia
         params.minInertiaRatio = 0.3
-
         # create detector
         self.detector = cv2.SimpleBlobDetector_create(params)
-
+        _logger.debug('*** exiting CalibrateNozzles.createDetector')
     def adjust_gamma(self, image, gamma=1.2):
         # build a lookup table mapping the pixel values [0, 255] to
         # their adjusted gamma values
@@ -1803,7 +1806,6 @@ class CalibrateNozzles(QThread):
             for i in np.arange(0, 256)]).astype( 'uint8' )
         # apply gamma correction using the lookup table
         return cv2.LUT(image, table)
-
     def putText(self, frame, text,color=(0, 0, 255), offsetx=0, offsety=0, stroke=2):  # Offsets are in character box size in pixels. 
         if (text == 'timestamp' ): text = datetime.datetime.now().strftime( '%m-%d-%Y %H:%M:%S' )
         fontScale = 1
@@ -1825,10 +1827,9 @@ class CalibrateNozzles(QThread):
         cv2.putText(frame, text, (bottomLeftX, bottomLeftY),
             cv2.FONT_HERSHEY_SIMPLEX, fontScale, color, stroke)
         return(frame)
-
     def changeVideoSrc(self, newSrc=-1):
+        _logger.debug('*** calling CalibrateNozzles.changeVideoSrc')
         self.cap.release()
-        
         #HBHBHBHB this should be a signal
         self.parent()._videoSrc = newSrc
         # Start Video feed
@@ -1841,7 +1842,6 @@ class CalibrateNozzles(QThread):
         self.contrast_default = self.cap.get(cv2.CAP_PROP_CONTRAST)
         self.saturation_default = self.cap.get(cv2.CAP_PROP_SATURATION)
         self.hue_default = self.cap.get(cv2.CAP_PROP_HUE)
-
         self.ret, self.cv_img = self.cap.read()
         if self.ret:
             local_img = self.cv_img
@@ -1855,6 +1855,7 @@ class CalibrateNozzles(QThread):
             self.ret, self.cv_img = self.cap.read()
             local_img = self.cv_img
             self.change_pixmap_signal.emit(local_img)
+        _logger.debug('*** exiting CalibrateNozzles.changeVideoSrc')
 
 ##############################################################################################################################################################
 ##############################################################################################################################################################
@@ -1875,6 +1876,7 @@ class App(QMainWindow):
     newPrinter = False
     # Set state flags to initial values
     flag_CP_setup = False
+    crosshair_cp = False
     # main printer class
     printer = None
     # driver API lists
@@ -1884,10 +1886,9 @@ class App(QMainWindow):
     _cameraWidth = 640
     _cameraHeight = 480
     _videoSrc = 0
-
-
 ### Initialize class
     def __init__(self, parent=None):
+        _logger.debug('*** calling App.__init__')
         # output greeting to log
         _logger.info( 'Launching application.. ' )
         super().__init__()
@@ -2240,7 +2241,6 @@ class App(QMainWindow):
             self.analysisMenu.addAction(self.exportAction)
         self.centralWidget = QWidget()
         self.setCentralWidget(self.centralWidget)
-        
 ### ##  Statusbar
         self.statusBar = QStatusBar()
         self.statusBar.showMessage( 'Ready to connect.' )
@@ -2273,17 +2273,17 @@ class App(QMainWindow):
         self.disconnect_button.setObjectName( 'terminate' )
         self.disconnect_button.setDisabled(True)
 ### ### controlPoint button
-        self.controlPoint_button = QPushButton( 'Set Control Point..' )
-        self.controlPoint_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
-        self.controlPoint_button.clicked.connect(self.setupCP)
-        self.controlPoint_button.setFixedWidth(170)
-        self.controlPoint_button.setDisabled(True)
+        self.setControlPoint_button = QPushButton( 'Set Control Point..' )
+        self.setControlPoint_button.setToolTip( 'Define your origin point\nto calculate all tool offsets from.' )
+        self.setControlPoint_button.clicked.connect(self.setupCP)
+        self.setControlPoint_button.setFixedWidth(170)
+        self.setControlPoint_button.setDisabled(True)
 ### ### calibration button
-        self.calibration_button = QPushButton( 'Start tool alignment..' )
-        self.calibration_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
-        self.calibration_button.clicked.connect(self.runCalibration)
-        self.calibration_button.setDisabled(True)
-        self.calibration_button.setFixedWidth(170)
+        self.startAlignment_button = QPushButton( 'Start tool alignment..' )
+        self.startAlignment_button.setToolTip( 'Start alignment process.\nMAKE SURE YOUR CARRIAGE IS CLEAR TO MOVE ABOUT WITHOUT COLLISIONS!' )
+        self.startAlignment_button.clicked.connect(self.runCalibration)
+        self.startAlignment_button.setDisabled(True)
+        self.startAlignment_button.setFixedWidth(170)
 ### ### debugInfo button
         self.debugInfo_button = QPushButton( 'Debug Information' )
         self.debugInfo_button.setToolTip( 'Display current debug info for troubleshooting\nand to display final G10 commands' )
@@ -2296,10 +2296,10 @@ class App(QMainWindow):
         self.exit_button.clicked.connect(self.close)
         self.exit_button.setFixedWidth(170)
 ### ### autoCalibrateEndstop button
-        self.autoCalibrateEndstop_button = QPushButton( 'Automated capture..' )
-        self.autoCalibrateEndstop_button.setFixedWidth(170)
-        self.autoCalibrateEndstop_button.clicked.connect(self.startAutoCPCapture)
-        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.automatedCP_button = QPushButton( 'Automated capture..' )
+        self.automatedCP_button.setFixedWidth(170)
+        self.automatedCP_button.clicked.connect(self.startAutoCPCapture)
+        self.automatedCP_button.setDisabled(True)
 ### ### manualAlignment button
         self.manualAlignment_button = QPushButton( 'Capture..' )
         self.manualAlignment_button.setToolTip( 'After jogging tool to the correct position in the window, capture and calculate offset.' )
@@ -2411,12 +2411,12 @@ class App(QMainWindow):
         self.button_x_left.setFixedSize(self.button_width,self.button_height)
         self.button_x_left.setMaximumHeight( self.button_height )
         self.button_x_left.setFont( self.panel_font )
+        self.button_x_left.clicked.connect(self.xleft_clicked)
         self.button_x_right = QPushButton( '+', objectName='plus' )
         self.button_x_right.setFixedSize(self.button_width,self.button_height)
         self.button_x_right.setMaximumHeight( self.button_height )
         self.button_x_right.setFont( self.panel_font )
-        self.button_x_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_left' ))
-        self.button_x_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'x_right' ))
+        self.button_x_right.clicked.connect(self.xright_clicked)
         self.x_label = QLabel( 'X' )
         self.x_label.setObjectName( 'labelPlus' )
         self.x_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
@@ -2425,12 +2425,12 @@ class App(QMainWindow):
         self.button_y_left.setFixedSize(self.button_width,self.button_height)
         self.button_y_left.setMaximumHeight( self.button_height )
         self.button_y_left.setFont( self.panel_font )
+        self.button_y_left.clicked.connect(self.yleft_clicked)
         self.button_y_right = QPushButton( '+', objectName='plus' )
         self.button_y_right.setFixedSize(self.button_width,self.button_height)
         self.button_y_right.setMaximumHeight( self.button_height )
         self.button_y_right.setFont( self.panel_font )
-        self.button_y_left.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_left' ))
-        self.button_y_right.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'y_right' ))
+        self.button_y_right.clicked.connect(self.yright_clicked)
         self.y_label = QLabel( 'Y' )
         self.y_label.setObjectName( 'labelPlus' )
         self.y_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter)
@@ -2439,12 +2439,12 @@ class App(QMainWindow):
         self.button_z_down.setFont(self.panel_font)
         self.button_z_down.setFixedSize(self.button_width,self.button_height)
         self.button_z_down.setMaximumHeight( self.button_height )
+        self.button_z_down.clicked.connect(self.zleft_clicked)
         self.button_z_up = QPushButton( '+', objectName='plus' )
         self.button_z_up.setFont(self.panel_font)
         self.button_z_up.setFixedSize(self.button_width,self.button_height)
         self.button_z_up.setMaximumHeight( self.button_height )
-        self.button_z_down.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'z_down' ))
-        self.button_z_up.clicked.connect(lambda: self.jogPanelButton_clickHandler( 'z_up' ))
+        self.button_z_up.clicked.connect(self.zright_clicked)
         self.z_label = QLabel( 'Z' )
         self.z_label.setObjectName( 'labelPlus' )
         self.z_label.setAlignment(Qt.AlignCenter |Qt.AlignVCenter) 
@@ -2472,7 +2472,6 @@ class App(QMainWindow):
         # create a grid box layout
         grid = QGridLayout()
         grid.setSpacing(3)
-        
         ################################################### ELEMENT POSITIONING ###################################################
         # row, col, rowSpan, colSpan, alignment
         ###################################################
@@ -2495,7 +2494,6 @@ class App(QMainWindow):
         grid.addWidget( self.altAlgorithm_checkbox,         1,  6,  1,  -1,  Qt.AlignLeft )
         # disconnect button
         grid.addWidget( self.disconnect_button,  1,  7,  1,  1, Qt.AlignCenter )
-        
         ###################################################
         # Second container
         # main image viewer
@@ -2511,13 +2509,12 @@ class App(QMainWindow):
             grid.addWidget( self.exit_button,       5,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
         # debug window button
         # grid.addWidget( self.debugInfo_button,          6,  7,  1,  1,  Qt.AlignCenter | Qt.AlignBottom )
-        
         ###################################################
         # Third container
         # set control point button
-        grid.addWidget( self.controlPoint_button,             7,  1,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.setControlPoint_button,             7,  1,  1,  1,  Qt.AlignLeft )
         # start calibration button
-        grid.addWidget( self.calibration_button,    7,  2,  1,  1,  Qt.AlignLeft )
+        grid.addWidget( self.startAlignment_button,    7,  2,  1,  1,  Qt.AlignLeft )
         # cycle repeat label
         grid.addWidget( self.cycles_label,          7,  3,  1,  1,  Qt.AlignLeft )
         # cycle repeat selector
@@ -2525,35 +2522,32 @@ class App(QMainWindow):
         # manual alignment button
         grid.addWidget( self.manualAlignment_button,         7,  6,  1,  1,  Qt.AlignLeft )
         # CP auto calibration button
-        grid.addWidget( self.autoCalibrateEndstop_button, 7,  7,  1,  1,  Qt.AlignRight )
+        grid.addWidget( self.automatedCP_button, 7,  7,  1,  1,  Qt.AlignRight )
         ################################################# END ELEMENT POSITIONING #################################################
-
         # set the grid layout as the widgets layout
         self.centralWidget.setLayout(grid)
-
 ### # Start video thread
         self.startVideo()
         # flag to draw circle
         self.crosshair = False
         self.crosshair_alignment = False
-
 ### # Output welcome message
         print()
         print( '  Welcome to TAMV!' )
         print()
-
-
+        _logger.debug('*** exiting App.__init__')
 ### main action functions
 ### # connect to printer
     def connectToPrinter(self):
+        _logger.debug('*** calling App.connectToPrinter')
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Waiting to connect to machine..' )
-        self.updateStatusbar( 'Select connection from list..' )
+        self.statusBar.showMessage( 'Select connection from list..' )
         self.instructions_text.setText( 'Choose a profile to use for the connection, or create a new connection profile by choosing<br><br><b>\"Add a new machine..\"</b>..')
         self.connect_button.setDisabled(True)
         self.disconnect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
+        self.startAlignment_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Connecting..' )
@@ -2583,18 +2577,21 @@ class App(QMainWindow):
         self.connection_dialog.connect_printer.connect( self.updatePrinterURL )
         self.connection_dialog.new_printer.connect( self.createNewConnection )
         ok = self.connection_dialog.exec()
+        # HBHBHBHB DEBUG: destroy connection_dialog window
+        self.connection_dialog = None
         if( self.newPrinter ):
             self.newPrinter = False
             self.settings_dialog = SettingsDialog(parent=self, addPrinter=True)
             self.settings_dialog.update_settings.connect( self.updateSettings )
             ok = self.settings_dialog.exec()
+            # HBHBHBHB DEBUG: destroy settings_dialog window
+            self.settings_dialog = None
             if( ok ):
                 text = self.options['printer'][(len(self.options['printer'])-1)]['address']
             else:
                 text = ''
         else:
             text = self.printerURL
-
         # Handle clicking OK/Connect
         if ok and text != '' and len(text) > 5:
             ( _errCode, _errMsg, tempURL ) = self.sanitizeURL(text)
@@ -2604,8 +2601,9 @@ class App(QMainWindow):
                 if ok:
                     ( _errCode, _errMsg, tempURL ) = self.sanitizeURL(text)
                 else:
-                    self.updateStatusbar( 'Connection request cancelled.' )
+                    self.statusBar.showMessage( 'Connection request cancelled.' )
                     self.resetConnectInterface()
+                    _logger.debug('*** exiting App.connectToPrinter')
                     return
             # input has been parsed and is clean, proceed
             self.printerURL = tempURL
@@ -2614,19 +2612,24 @@ class App(QMainWindow):
             self.saveAction.setDisabled(True)
         # Handle clicking cancel
         elif not ok:
-            self.updateStatusbar( 'Connection request cancelled.' )
+            self.statusBar.showMessage( 'Connection request cancelled.' )
             self.resetConnectInterface()
+            _logger.debug('*** exiting App.connectToPrinter')
             return
         # Handle invalid input
         elif len(text) < 6 or text[:4] not in ['http']:
             message = 'Invalid IP address or hostname: \"' + text +'\". Add http(s):// to try again.'
-            self.updateStatusbar(message)
+            self.statusBar.showMessage(message)
             self.instructions_text.setText(message)
+            # HBHBHBHB DEBUG: destroy QInputDialog
+            ok = None
+            text = None
             app.processEvents()
             self.resetConnectInterface()
+            _logger.debug('*** exiting App.connectToPrinter')
             return
         # Update user with new state
-        self.updateStatusbar( 'Attempting to connect to: ' + self.activePrinter['nickname'] + ' (' + self.activePrinter['controller']+ ')' )
+        self.statusBar.showMessage( 'Attempting to connect to: ' + self.activePrinter['nickname'] + ' (' + self.activePrinter['controller']+ ')' )
         self.instructions_text.setText('Attempting to connect to: <b>' + self.activePrinter['nickname'] + '</b> (<i>' + self.activePrinter['controller']+ '</i>)' )
         _logger.info( 'Attempting to connect to: ' + self.printerURL )
         app.processEvents()
@@ -2651,15 +2654,14 @@ class App(QMainWindow):
             driverModule = importlib.util.module_from_spec(spec)
             sys.modules[driverSelect[:-3]] = driverModule
             spec.loader.exec_module(driverModule)
-            
             self.printer = driverModule.printerAPI(self.printerURL)
-            
             if not self.printer.isIdle():
                 # connection failed for some reason
                 errorMsg = 'Device either did not respond or is not a supported controller type.'
-                self.updateStatusbar( errorMsg )
+                self.statusBar.showMessage( errorMsg )
                 _logger.info( errorMsg )
                 self.resetConnectInterface()
+                _logger.debug('*** exiting App.connectToPrinter')
                 return
             else:
                 # connection succeeded, update objects accordingly
@@ -2685,9 +2687,10 @@ class App(QMainWindow):
                     self.toolButtons.append(toolButton)
                 _logger.debug( 'Tool data and interface created successfully.' )
         except Exception:
-            self.updateStatusbar( 'Cannot connect to: ' + self.activePrinter['nickname'] )
+            self.statusBar.showMessage( 'Cannot connect to: ' + self.activePrinter['nickname'] )
             _logger.error( 'Cannot connect to machine: ' + traceback.format_exc() )
             self.resetConnectInterface()
+            _logger.debug('*** exiting App.connectToPrinter')
             return
         # Get active tool
         _active = self.printer.getCurrentTool()
@@ -2701,35 +2704,64 @@ class App(QMainWindow):
             button.clicked.connect(self.callTool)
             self.toolBox_boxlayout.addWidget(button)
         self.toolButtons_box.setVisible(True)
-        # Connection succeeded, update GUI first
-        self.connect_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
-        self.statusBar.showMessage( 'Ready.' )
-        self.connection_status.setText( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
-        self.connection_status.setToolTip( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
-        self.image_label.setText( 'Set Control Point.' )
-        # enable/disable buttons
-        self.connect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.autoCalibrateEndstop_button.setDisabled(True)
-        self.disconnect_button.setDisabled(False)
-        self.controlPoint_button.setDisabled(False)
-        self.mainSidebar_panel.setDisabled(False)
-        self.mainSidebar_panel.setCurrentIndex(0)
-        
-        # Issue #25: fullscreen mode menu error: can't disable items
-        if not self.small_display:
-            self.analysisMenu.setDisabled(True)
-
-        # update connection status indicator to green
-        self.connection_status.setStyleSheet(style_green)
-        self.cp_label.setStyleSheet(style_red)
-
-        # Update instructions box
-        self.instructions_text.setText("Place endstop near center of preview window, and select:<br><br><b>Set Control Point..</b>.")
-        app.processEvents()
-        _logger.info( '  .. connection successful!' )
+        if( self.checkMachine() is True ):
+            # Connection succeeded, update GUI first
+            self.connect_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
+            self.statusBar.showMessage( 'Ready.' )
+            self.connection_status.setText( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
+            self.connection_status.setToolTip( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
+            self.image_label.setText( 'Set Control Point.' )
+            # enable/disable buttons
+            self.connect_button.setDisabled(True)
+            self.startAlignment_button.setDisabled(True)
+            self.automatedCP_button.setDisabled(True)
+            self.disconnect_button.setDisabled(False)
+            self.setControlPoint_button.setDisabled(False)
+            self.mainSidebar_panel.setDisabled(False)
+            self.mainSidebar_panel.setCurrentIndex(0)
+            # Issue #25: fullscreen mode menu error: can't disable items
+            if not self.small_display:
+                self.analysisMenu.setDisabled(True)
+            # update connection status indicator to green
+            self.connection_status.setStyleSheet(style_green)
+            self.cp_label.setStyleSheet(style_red)
+            # Update instructions box
+            self.instructions_text.setText("Place endstop near center of preview window, and select:<br><br><b>Set Control Point..</b>.")
+            #HBHBHBHB DEBUG: this may cause issues
+            # app.processEvents()
+            _logger.info( '  .. connection successful!' )
+        else:
+            # Connection succeeded but machine is not homed, update GUI first
+            self.connect_button.setText( 'Online: ' + self.printerURL[self.printerURL.rfind( '/' )+1:])
+            self.statusBar.showMessage( 'Machine is not homed.' )
+            self.connection_status.setText( self.activePrinter['nickname'] + ' (' + self.activePrinter['controller'] + ')' )
+            self.connection_status.setToolTip( 'Machine is not homed!' )
+            self.image_label.setText( 'Set Control Point.' )
+            # enable/disable buttons
+            self.connect_button.setDisabled(True)
+            self.startAlignment_button.setDisabled(True)
+            self.automatedCP_button.setDisabled(True)
+            self.disconnect_button.setDisabled(False)
+            self.setControlPoint_button.setDisabled(True)
+            self.mainSidebar_panel.setDisabled(False)
+            self.jogPanel_tab.setDisabled(True)
+            self.disableButtonsCP()
+            self.mainSidebar_panel.setCurrentIndex(0)
+            # Issue #25: fullscreen mode menu error: can't disable items
+            if not self.small_display:
+                self.analysisMenu.setDisabled(True)
+            # update connection status indicator to orange
+            self.connection_status.setStyleSheet(style_orange)
+            self.cp_label.setStyleSheet(style_orange)
+            # Update instructions box
+            self.instructions_text.setText("Machine is not homed.<br>Please <b>STOP / Disconnect</b>, home your machine, and connect again.")
+            app.processEvents()
+            _logger.info( '  .. connection successful..' )
+            _logger.warning( '  .. machine is not homed..' )
+        _logger.debug('*** exiting App.connectToPrinter')
 ### # save user settings.json
     def saveUserSettings(self):
+        _logger.debug('*** calling App.saveUserSettings')
         try:
             # get default camera from user settings
             cameraSet = False
@@ -2765,26 +2797,31 @@ class App(QMainWindow):
             with open( './config/settings.json','w' ) as outputfile:
                 json.dump(self.options, outputfile)
             _logger.info( 'User preferences saved to settings.json' )
-            self.updateStatusbar( 'User preferences saved to settings.json' )
+            self.statusBar.showMessage( 'User preferences saved to settings.json' )
         except Exception as e1:
             _logger.error( 'Error saving user settings file.' + str(e1) )
-            self.updateStatusbar( 'Error saving user settings file.' )
+            self.statusBar.showMessage( 'Error saving user settings file.' )
+        _logger.debug('*** exiting App.saveUserSettings')
 ### # prepare for CP capture
     def setupCP(self):
+        _logger.debug('*** calling App.setupCP')
         # Check if machine is ready for movement
         if( self.checkMachine() is False ):
-            # Machine isn't ready, don't do anything.
-            app.processEvents()
+            # Machine isn't ready, and user has been notified. Don't do anything.
+            _logger.debug('App.setupCP: machine is not homed.')
             return
         # disable buttons for CP capture run
         self.disableButtonsCP()
         # handle scenario where machine is busy and user tries to select a tool.
         if not self.printer.isIdle():
-            self.updateStatusbar( 'Machine is not idle, cannot select tool.' )
+            self.statusBar.showMessage( 'Machine is not idle, cannot select tool.' )
+            _logger.warning('Machine is not idle, cannot select tool.')
             return
         # display crosshair on video feed at center of image
-        self.crosshair = True
-        self.calibration_button.setDisabled(True)
+        self.crosshair_cp = True
+        # Disable user interface
+        self.startAlignment_button.setDisabled(True)
+        self.jogPanel_tab.setDisabled(True)
         if len(self.cp_coords) > 0:
             self.printer.unloadTools()
             # check kinematics rotation
@@ -2799,26 +2836,49 @@ class App(QMainWindow):
                 self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
                 self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(self.cp_coords['Z']) )
         # Enable automated button
-        self.autoCalibrateEndstop_button.setDisabled(False)
+        self.automatedCP_button.setDisabled(False)
         # Enable capture button
         self.manualAlignment_button.setDisabled(False)
         # Update instructions box
         self.instructions_text.setText( 'To auto-align, click \"<b>Automated capture..</b>\". Otherwise, use jog panel to center on crosshair and then click <b>Capture..</b>.' )
-        app.processEvents()
         # wait for user to conclude with state flag
         self.flag_CP_setup = True
+        # enable jog panel
+        self.jogPanel_tab.setDisabled(False)
+        _logger.debug('*** exiting App.setupCP')
         return
 ### # start automatic CP capture
     def startAutoCPCapture(self):
+        _logger.debug('*** starting App.startAutoCPCapture')
         _logger.info( 'Starting automated CP capture..' )
+        # disable jog panel
+        self.jogPanel_tab.setDisabled(True)
+        # disable tool buttons
+        self.disableButtonsCP()
+        # disable "Set Control Point"
+        self.setControlPoint_button.setDisabled(True)
+        # disable "Automated Capture.."
+        self.automatedCP_button.setDisabled(True)
+        # disable "Capture.."
+        self.manualAlignment_button.setDisabled(True)
+        # disable cycles
+        self.cycles_spinbox.setDisabled(True)
+        # enable crosshair
+        self.crosshair_cp = True
+        app.processEvents()
         self.video_thread.align_endstop = True
-        while self.video_thread.align_endstop and self.video_thread._running:
-            app.processEvents()
+        while True:
+            if( self.video_thread.align_endstop ):
+                app.processEvents()
+            else:
+                break
         self.readyToCalibrate()
+        app.processEvents()
+        self.crosshair_cp = False
+        _logger.debug('*** exiting App.startAutoCPCapture')
 ### # capture CP coordinates
     def captureControlPoint(self):
-        # reset state flag
-        self.flag_CP_setup = False
+        _logger.debug('*** starting App.captureControlPoint')
         # When user confirms everything is done, capture CP values and store
         self.cp_coords = self.printer.getCoordinates()
         self.cp_string = '( ' + str(self.cp_coords['X']) + ', ' + str(self.cp_coords['Y']) + ' )'
@@ -2827,26 +2887,36 @@ class App(QMainWindow):
         _logger.info( 'Ready for tool alignment!' )
         # Disable crosshair
         self.crosshair = False
-        # Setup GUI for next step
-        self.readyToCalibrate()
+        self.crosshair_cp = False
         # Move printer to CP to prepare for next step
         # check kinematics rotation
-        if( self.activePrinter['rotated'] == 0 ):
-            # Move in X, then Y, then Z
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-        else:
-            # Move in Y, then X, then Z
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
-            self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+        try:
+            if( self.activePrinter['rotated'] == 0 ):
+                _logger.debug('Normal kinematics movement.')
+                # Move in X, then Y, then Z
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+            else:
+                _logger.debug('Rotated kinematics movement.')
+                # Move in Y, then X, then Z
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, Y=str(self.cp_coords['Y']) )
+                self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(self.cp_coords['X']) )
+        except:
+            _logger.error('Unknown exception while capturing control point: ') + traceback.format_exc()
+        # Setup GUI for next step
+        self.readyToCalibrate()
+        _logger.debug('*** exiting App.captureControlPoint')
 ### # manually capture tool offset
     def captureOffset(self):
+        _logger.debug('*** calling App.captureOffset')
         # Check if performing CP setup
         if self.flag_CP_setup:
             try:
                 self.captureControlPoint()
+                # reset state flag
+                self.flag_CP_setup = False
             except Exception:
-                _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
+                _logger.error( 'captureOffset error: \n' + traceback.format_exc() )
                 self.statusBar.showMessage( 'Error 1 in manual capture. Check logs.' )
                 return
         else:
@@ -2868,15 +2938,16 @@ class App(QMainWindow):
                 self.printer.setToolOffsets(tool=str(_active), X=str(final_x), Y=str(final_y) )
             except Exception:
                 self.statusBar.showMessage( 'Error 2 in manual capture. Check logs.' )
-                _logger.error( 'Capture Offset error 2: \n' + traceback.format_exc() )
+                _logger.error( 'captureOffset error 2: \n' + traceback.format_exc() )
             _logger.debug( 'Manual offset calculation ending..' )
             self.toolButtons[_active].setObjectName( 'completed' )
             self.toolButtons[_active].setStyle(self.toolButtons[_active].style())
         self.crosshair_alignment = False
+        _logger.debug('*** exiting App.captureOffset')
         return
 ### # run automated tool calibration
     def runCalibration(self):
-        _logger.debug( 'Calibration setup method starting.' )
+        _logger.debug('*** calling App.runCalibration')
         # reset debugString
         self.debugString = ''
         # prompt for user to apply results
@@ -2888,9 +2959,9 @@ class App(QMainWindow):
         yes_button.setObjectName( 'active' )
         yes_button.setStyleSheet(style_green)
         no_button = msgBox.addButton( 'Cancel',QMessageBox.NoRole)
-
         returnValue = msgBox.exec_()
         if msgBox.clickedButton() == no_button:
+            _logger.debug('*** exiting App.runCalibration')
             return
         # close camera settings dialog so it doesn't crash
         try:
@@ -2898,10 +2969,10 @@ class App(QMainWindow):
                 self.settings_dialog.reject()
         except: None
         # update GUI
-        self.controlPoint_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
-        self.calibration_button.setDisabled(True)
+        self.startAlignment_button.setDisabled(True)
         self.xray_checkbox.setDisabled(False)
         self.xray_checkbox.setChecked(False)
         self.xray_checkbox.setVisible(True)
@@ -2913,7 +2984,8 @@ class App(QMainWindow):
         self.altAlgorithm_checkbox.setVisible(True)
         self.toolButtons_box.setVisible(False)
         self.detectOn_checkbox.setVisible(False)
-        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.automatedCP_button.setDisabled(True)
+        #HBHBHBHB TODO: update tool data table
         # _logger.debug( 'Updating tool interface..' )
         # for tool in self.printerObject['tools']:
         #     current_tool = self.printer.getToolOffset( tool['number'] ) 
@@ -2927,7 +2999,6 @@ class App(QMainWindow):
         # get number of repeat cycles
         self.cycles_spinbox.setDisabled(True)
         self.cycles = self.cycles_spinbox.value()
-
         # create the Nozzle detection capture thread
         _logger.debug( 'Launching calibration threads..' )
         self.video_thread.display_crosshair = True
@@ -2935,11 +3006,10 @@ class App(QMainWindow):
         self.video_thread.xray = False
         self.video_thread.loose = False
         self.video_thread.alignment = True
-        _logger.debug( 'Calibration setup method exiting.' )
+        _logger.debug('*** exiting App.runCalibration')
 ### # apply calibration results
     def applyCalibration(self):
-        # update GUI
-        self.readyToCalibrate()
+        _logger.debug('*** calling App.applyCalibration')
         # close camera settings dialog so it doesn't crash
         try:
             if self.settings_dialog.isVisible():
@@ -2953,13 +3023,12 @@ class App(QMainWindow):
         yes_button = msgBox.addButton( 'Apply offsets and save (M500)',QMessageBox.ApplyRole)
         yes_button.setStyleSheet(style_green)
         cancel_button = msgBox.addButton( 'Apply offsets',QMessageBox.NoRole)
-        
+        cancel_button.setStyleSheet(style_red)
         # Update debug string
         self.debugString += '\nCalibration results:\n'
         for result in self.calibrationResults:
             calibrationCode = 'G10 P' + str(result['tool']) + ' X' + str(result['X']) + ' Y' + str(result['Y'])
             self.debugString += calibrationCode + '\n'
-
         # Prompt user
         returnValue = msgBox.exec()
         if msgBox.clickedButton() == yes_button:
@@ -2976,19 +3045,22 @@ class App(QMainWindow):
         self.video_thread.display_crosshair = False
         # run stats
         self.analyzeResults()
+        # update GUI
+        self.readyToCalibrate()
+        _logger.debug('*** exiting App.applyCalibration')
 ### # disconnect from printer
     def disconnectFromPrinter(self):
-        _logger.info( 'Terminating connection to machine.. ' )
+        _logger.debug('*** calling App.disconnectFromPrinter')
         # temporarily suspend GUI and display status message
         self.image_label.setText( 'Restoring machine to initial state..' )
-        self.updateStatusbar( 'Restoring machine and disconnecting...' )
+        self.statusBar.showMessage( 'Restoring machine and disconnecting...' )
         self.instructions_text.setText('Disconnecting from:<br><b>' + self.activePrinter['nickname'] + '</b> (<i>' + self.activePrinter['controller']+ '</i>)<br><br>Please wait..' )
         self.connect_button.setText( 'Pending..' )
         self.connect_button.setDisabled(True)
         self.disconnect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
-        self.controlPoint_button.setText( 'Pending..' )
+        self.startAlignment_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
+        self.setControlPoint_button.setText( 'Pending..' )
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Disconnecting..' )
@@ -3002,7 +3074,7 @@ class App(QMainWindow):
         self.relaxedDetection_checkbox.setDisabled(True)
         self.altAlgorithm_checkbox.setDisabled(True)
         self.toolButtons_box.setVisible(False)
-        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.automatedCP_button.setDisabled(True)
         self.repaint()
         # End video threads and restart default thread
         # Clean up threads and detection
@@ -3015,7 +3087,7 @@ class App(QMainWindow):
         self.detectOn_checkbox.setVisible(True)
 
         # update status 
-        self.updateStatusbar( 'Unloading tools and disconnecting from machine..' )
+        self.statusBar.showMessage( 'Unloading tools and disconnecting from machine..' )
         _logger.info( ' .. unloading tools..' )
         # Wait for printer to stop moving and unload tools
         _ret_error = 0
@@ -3052,8 +3124,11 @@ class App(QMainWindow):
                         self.printer.moveAbsolute( moveSpeed=_moveSpeed, X=str(tempCoords['X']) )
                         self.printer.moveAbsolute( moveSpeed=_moveSpeed, Z=str(tempCoords['Z']) )
                 printerDisconnected = True
+                _ret_error = 0
             else:
                 if( self.printer.isHomed() ):
+                    self.printer.flushMovementBuffer()
+                    _ret_error = 1
                     _logger.debug( 'Sleeping to retry disconnect..' )
                     time.sleep(0.5)
                     continue
@@ -3061,7 +3136,8 @@ class App(QMainWindow):
                     printerDisconnected = True
         # update status with disconnection state
         if _ret_error == 0:
-            self.updateStatusbar( 'Disconnected.' )
+            self.printer = None
+            self.statusBar.showMessage( 'Disconnected.' )
             self.statusBar.setStyleSheet(style_default)
             _logger.info( ' .. connection terminated.' )
         else: 
@@ -3079,9 +3155,9 @@ class App(QMainWindow):
         self.connect_button.setText( 'Connect..' )
         self.connect_button.setDisabled(False)
         self.disconnect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
-        self.controlPoint_button.setText( 'Set Control Point..' )
+        self.startAlignment_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
+        self.setControlPoint_button.setText( 'Set Control Point..' )
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
         self.manualAlignment_button.setDisabled(True)
@@ -3094,37 +3170,48 @@ class App(QMainWindow):
         self.relaxedDetection_checkbox.setDisabled(True)
         self.altAlgorithm_checkbox.setDisabled(True)
         self.resetConnectInterface()
+        _logger.debug('*** exiting App.disconnectFromPrinter')
 
 
 ### Utility functions
 ### # check if machine is ready to move
     def checkMachine(self):
+        _logger.debug('*** calling App.checkMachine')
         if( self.printer.isHomed() is False ):
             # Update status bar
-            self.updateStatusbar( "One or more axes are not homed. Please re-home machine." )
-            self.updateMessagebar( "Machine not ready." )
+            self.statusBar.showMessage( "One or more axes are not homed. Please re-home machine." )
+            self.image_label.setText( "Machine not ready." )
             self.statusBar.setStyleSheet(style_red)
             # Update instruction box
             self.instructions_text.setText("One or more axes are not homed. Please home your machine and retry.")
+            _logger.warning("One or more axes are not homed. Please home your machine and retry.")
             app.processEvents()
             return False
         else:
             self.statusBar.setStyleSheet(style_default)
+        _logger.debug('*** exiting App.checkMachine')
         return True
 ### # load tool into machine
     def callTool(self):
+        _logger.debug('*** calling App.callTool')
         # Check if machine is ready for movement
         if( self.checkMachine() is False ):
             # Machine is not homed, don't do anything and return
+            _logger.debug( 'checkMachine returned False')
+            _logger.debug('*** exiting App.callTool')
             return
         self.manualAlignment_button.setDisabled(False)
         # handle scenario where machine is busy and user tries to select a tool.
         if not self.printer.isIdle():
-            self.updateStatusbar( 'Machine is not idle, cannot select tool.' )
+            self.statusBar.showMessage( 'Machine is not idle, cannot select tool.' )
+            _logger.debug('Machine is not idle, cannot select tool.')
+            _logger.debug('*** exiting App.callTool')
             return
         # check if machine is homed or not
         if( self.printer.isHomed() is False ):
-            self.updateStatusbar( 'Machine axes have not been homed. Please re-home your machine.' )
+            self.statusBar.showMessage( 'Machine axes have not been homed. Please re-home your machine.' )
+            _logger.debug( 'Machine axes have not been homed. Please re-home your machine.' )
+            _logger.debug('*** exiting App.callTool')
             return
         # get current active tool
         _active = self.printer.getCurrentTool()      
@@ -3172,12 +3259,14 @@ class App(QMainWindow):
                 # End video threads and restart default thread
                 self.video_thread.alignment = False
                 # Update GUI for unloading carriage
-                self.calibration_button.setDisabled(False)
-                self.controlPoint_button.setDisabled(False)
-                self.updateMessagebar( 'Ready.' )
-                self.updateStatusbar( 'Ready.' )
+                self.startAlignment_button.setDisabled(False)
+                self.setControlPoint_button.setDisabled(False)
+                self.image_label.setText( 'Ready.' )
+                self.statusBar.showMessage( 'Ready.' )
                 self.displayToolLoaded(tool=-1)
             else:
+                _logger.debug('User cancelled operation.')
+                _logger.debug('*** exiting App.callTool')
                 # User cancelled, do nothing
                 return
         else:
@@ -3225,15 +3314,16 @@ class App(QMainWindow):
                         self.settings_dialog.reject()
                 except: None
                 # update GUI
-                self.controlPoint_button.setDisabled(True)
+                self.setControlPoint_button.setDisabled(True)
                 self.mainSidebar_panel.setDisabled(False)
                 self.mainSidebar_panel.setCurrentIndex(0)
-                self.calibration_button.setDisabled(True)
+                self.startAlignment_button.setDisabled(True)
                 self.cycles_spinbox.setDisabled(True)
                 self.displayToolLoaded(tool=int(sender.text()[1:]))
             else:
                 self.toolButtons[int(self.sender().text()[1:])].setChecked(False)
         app.processEvents()
+        _logger.debug('*** exiting App.callTool')
 ### # convert image to Pixmap datatype
     def convert_cv_qt(self, cv_img):
         # Convert from an opencv image to QPixmap
@@ -3247,35 +3337,69 @@ class App(QMainWindow):
     def addCalibrationResult(self, result={}):
         self.calibrationResults.append(result)
 ### # event handler: jog panel click
-    def jogPanelButton_clickHandler(self, buttonName):
-        # Check if machine is ready for movement
-        if( self.checkMachine() is False ):
-            # Machine is not homed, don't do anything and return
-            return
-        increment_amount = 1
+    def xleft_clicked( self ):
         # fetch current increment value
         if self.button_1.isChecked():
-            increment_amount = 1
+            increment_amount_xl = 1
         elif self.button_01.isChecked():
-            increment_amount = 0.1
+            increment_amount_xl = 0.1
         elif self.button_001.isChecked():
-            increment_amount = 0.01
-        # Call corresponding axis gcode command
-        if buttonName == 'x_left':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(-1*increment_amount) )
-        elif buttonName == 'x_right':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(increment_amount) )
-        elif buttonName == 'y_left':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(-1*increment_amount) )
-        elif buttonName == 'y_right':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(increment_amount) )
-        elif buttonName == 'z_down':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(-1*increment_amount) )
-        elif buttonName == 'z_up':
-            self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(increment_amount) )
+            increment_amount_xl = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(-1*increment_amount_xl) )
+        return
+    def xright_clicked( self ):
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount_xr = 1
+        elif self.button_01.isChecked():
+            increment_amount_xr = 0.1
+        elif self.button_001.isChecked():
+            increment_amount_xr = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, X=str(1*increment_amount_xr) )
+        return
+    def yleft_clicked( self ):
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount_yl = 1
+        elif self.button_01.isChecked():
+            increment_amount_yl = 0.1
+        elif self.button_001.isChecked():
+            increment_amount_yl = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(-1*increment_amount_yl) )
+        return
+    def yright_clicked( self ):
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount_yr = 1
+        elif self.button_01.isChecked():
+            increment_amount_yr = 0.1
+        elif self.button_001.isChecked():
+            increment_amount_yr = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, Y=str(1*increment_amount_yr) )
+        return
+    def zleft_clicked( self ):
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount_zl = 1
+        elif self.button_01.isChecked():
+            increment_amount_zl = 0.1
+        elif self.button_001.isChecked():
+            increment_amount_zl = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(-1*increment_amount_zl) )
+        return
+    def zright_clicked( self ):
+        # fetch current increment value
+        if self.button_1.isChecked():
+            increment_amount_zr = 1
+        elif self.button_01.isChecked():
+            increment_amount_zr = 0.1
+        elif self.button_001.isChecked():
+            increment_amount_zr = 0.01
+        self.printer.moveRelative( moveSpeed=_moveSpeed, Z=str(1*increment_amount_zr) )
         return
 ### # sanitize printer URL
     def sanitizeURL(self, inputString='http://localhost' ):
+        _logger.debug('*** calling App.sanitizeURL')
         _errCode = 0
         _errMsg = ''
         _printerURL = 'http://localhost'
@@ -3294,9 +3418,11 @@ class App(QMainWindow):
             _errMsg = 'Cannot use https connections for Duet controllers'
         else:
             _printerURL = scheme + '://' + netlocation
+        _logger.debug('*** exiting App.sanitizeURL')
         return( _errCode, _errMsg, _printerURL )
 ### # display settings dialog
     def displaySettings(self):
+        _logger.debug('*** calling App.displaySettings')
         # Set up settings window
         try:
             # Attempt to restore window geometry if available
@@ -3307,8 +3433,10 @@ class App(QMainWindow):
             self.settings_dialog = SettingsDialog(parent=self, addPrinter=False)
         self.settings_dialog.update_settings.connect( self.updateSettings )
         self.settings_dialog.exec()
+        _logger.debug('*** exiting App.displaySettings')
 ### # display debug dialog
     def displayDebug(self):
+        _logger.debug('*** calling App.displayDebug')
         # Set up debug screen window
         try:
             # Attempt to restore window geometry if available
@@ -3318,10 +3446,14 @@ class App(QMainWindow):
             self.debugGeometry = None
             self.debugWindow = DebugDialog(parent=self)
         self.debugWindow.exec()
+        _logger.debug('*** exiting App.displayDebug')
 ### # analyze calibration results
     def analyzeResults(self, graph=False, export=False):
+        _logger.debug('*** calling App.analyzeResults')
         if len(self.calibrationResults) < 1:
-            self.updateStatusbar( 'No calibration data found.' )
+            self.statusBar.showMessage( 'No calibration data found.' )
+            _logger.debug('No calibration data found.')
+            _logger.debug('*** exiting App.analyzeResults')
             return
         if graph or export:
             # get data as 3 dimensional array [tool][axis][datapoints] normalized around mean of each axis
@@ -3434,12 +3566,14 @@ class App(QMainWindow):
                     json.dump(self.calibrationResults, outputfile)
                 successMsg = 'Alignment data exported to ' + exportFilename
                 _logger.info( successMsg )
-                self.updateStatusbar( successMsg )
+                self.statusBar.showMessage( successMsg )
             except:
                 _logger.error( 'Failed to export alignment data:' + traceback.format_exc() )
-                self.updateStatusbar( 'Error exporting data, please check terminal for details.' )
+                self.statusBar.showMessage( 'Error exporting data, please check terminal for details.' )
+        _logger.debug('*** exiting App.analyzeResults')
 ### # parse raw data for analysis
     def parseData( self, rawData ):
+        _logger.debug('*** calling App.parseData')
         # create empty output array
         toolDataResult = []
         # get number of tools
@@ -3477,9 +3611,11 @@ class App(QMainWindow):
             # add data to return object
             toolDataResult.append(tempPairs)
         # return dataset
+        _logger.debug('*** exiting App.parseData')
         return ( _numTools, _cycles, toolDataResult )
 ### # format stats output
     def stats(self):
+        _logger.debug('*** calling App.stats')
         ###################################################################################
         # Report on repeated executions
         ###################################################################################
@@ -3522,15 +3658,16 @@ class App(QMainWindow):
             )        
         print( '+-------------------------------------------------------------------------------------------------------+' )
         print( 'Note: Repeatability cannot be better than one pixel (MPP=' + str(mpp_value) + ' ).' )
-
+        _logger.debug('*** exiting App.stats')
 
 ### GUI update helper functions
 ### # reset connection to default state
     def resetConnectInterface(self):
+        _logger.debug('*** calling App.resetConnectInterface')
         self.connect_button.setDisabled(False)
         self.disconnect_button.setDisabled(True)
-        self.calibration_button.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
+        self.startAlignment_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
         self.mainSidebar_panel.setDisabled(True)
         self.mainSidebar_panel.setCurrentIndex(0)
         self.connection_status.setText( 'Disconnected' )
@@ -3555,7 +3692,7 @@ class App(QMainWindow):
         self.video_thread.loose = False
         self.video_thread.xray = False
         self.video_thread.alignment = False
-        self.autoCalibrateEndstop_button.setDisabled(True)
+        self.automatedCP_button.setDisabled(True)
         self.crosshair = False
         self.statusBar.setStyleSheet(style_default)
         self.instructions_text.setText("Click on \"<b>Connect..</b>\" to select a machine for calibration.")
@@ -3568,21 +3705,24 @@ class App(QMainWindow):
         self.toolButtons = []
         self.settingsAction.setDisabled(False)
         self.saveAction.setDisabled(False)
-        app.processEvents()
+        _logger.debug('*** exiting App.resetConnectInterface')
 ### # disable CP buttons
     def disableButtonsCP(self):
+        _logger.debug('*** calling App.disableButtonsCP')
         for item in self.toolButtons:
             item.setDisabled(True)
-        self.controlPoint_button.setDisabled(True)
+        self.setControlPoint_button.setDisabled(True)
+        _logger.debug('*** exiting App.disableButtonsCP')
 ### # apply interface ready to calibrate state
     def readyToCalibrate(self):
+        _logger.debug('*** calling App.readyToCalibrate')
         for item in self.toolButtons:
             item.setDisabled(False)
         self.manualAlignment_button.setDisabled(True)
         self.statusBar.showMessage( 'Control Point coordinates saved.',3000)
         self.image_label.setText( 'Ready to run calibration.' )
         self.instructions_text.setText( "<i>Ready to run calibration.</i><br>To run for all tools, <br>\"<b>Start tool alignment..</b>\"<br><br>Set the number of times to run using the \"<b>Cycles</b>\" spin box." )
-        self.controlPoint_button.setText( 'Set new control point.. ' )
+        self.setControlPoint_button.setText( 'Set new control point.. ' )
         #self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
         self.cp_label.setStyleSheet(style_green)
         self.detectOn_checkbox.setChecked(False)
@@ -3601,10 +3741,10 @@ class App(QMainWindow):
         self.video_thread.loose = False
         self.video_thread.xray = False
         self.video_thread.alignment = False
-        self.calibration_button.setDisabled(False)
-        self.controlPoint_button.setDisabled(False)
-        self.autoCalibrateEndstop_button.setDisabled(True)
-
+        self.startAlignment_button.setDisabled(False)
+        self.setControlPoint_button.setDisabled(False)
+        self.automatedCP_button.setDisabled(True)
+        self.jogPanel_tab.setDisabled(False)
         self.toolButtons_box.setVisible(True)
         self.cycles_spinbox.setDisabled(False)
 
@@ -3616,12 +3756,15 @@ class App(QMainWindow):
             # Issue #25: fullscreen mode menu error: can't disable items
             if not self.small_display:
                 self.analysisMenu.setDisabled(True)
+        _logger.debug('*** exiting App.readyToCalibrate')
 ### # toggle detection
     def toggle_detection(self):
+        _logger.debug('*** calling App.toggle_detection')
         self.video_thread.display_crosshair = not self.video_thread.display_crosshair
         self.video_thread.detection_on = not self.video_thread.detection_on
         self.crosshair_alignment = not self.crosshair_alignment
         if self.video_thread.detection_on:
+            _logger.debug('Detect enabled.')
             self.xray_checkbox.setDisabled(False)
             self.xray_checkbox.setVisible(True)
             self.relaxedDetection_checkbox.setDisabled(False)
@@ -3629,51 +3772,63 @@ class App(QMainWindow):
             self.altAlgorithm_checkbox.setDisabled(False)
             self.altAlgorithm_checkbox.setVisible(True)
         else:
+            _logger.debug('Detect disabled.')
             self.xray_checkbox.setDisabled(True)
             self.xray_checkbox.setVisible(False)
             self.relaxedDetection_checkbox.setDisabled(True)
             self.relaxedDetection_checkbox.setVisible(False)
             self.altAlgorithm_checkbox.setDisabled(True)
             self.altAlgorithm_checkbox.setVisible(False)
-            self.updateStatusbar( 'Detection: OFF' )
+            self.statusBar.showMessage( 'Detection: OFF' )
+        _logger.debug('*** exiting App.toggle_detection')
 ### # enable xray output
     def toggle_xray(self):
+        _logger.debug('*** calling App.toggle_xray')
         try:
             self.video_thread.toggleXray()
         except Exception as e1:
-            self.updateStatusbar( 'Detection thread not running.' )
+            self.statusBar.showMessage( 'Detection thread not running.' )
             _logger.error( 'Detection thread error in XRAY: ' +  str(e1) )
+        _logger.debug('*** exiting App.toggle_xray')
 ### # toggle relaxed detection
     def toggle_relaxed(self):
+        _logger.debug('*** calling App.toggle_relaxed')
         try:
-            self.video_thread.toggleLoose()
+            self.video_thread.toggleRelaxed()
         except Exception as e1:
-            self.updateStatusbar( 'Detection thread not running.' )
+            self.statusBar.showMessage( 'Detection thread not running.' )
             _logger.error( 'Detection thread error in LOOSE: ' + str(e1) )
+        _logger.debug('*** exiting App.toggle_relaxed')
 ### # toggle alternative algorithm
     def toggle_algorithm( self ):
+        _logger.debug('*** calling App.toggle_algorithm')
         try:
             self.video_thread.toggleAlgorithm()
         except Exception as e1:
-            self.updateStatusbar('Alternative detection algorithm not active.')
+            self.statusBar.showMessage('Alternative detection algorithm not active.')
             _logger.error('Alternative algorithm error: ' + str(e1) )
+        _logger.debug('*** exiting App.toggle_algorithm')
 ### # display standby image
     def displayStandby( self ):
+        _logger.debug('*** calling App.displayStandby')
         self.image_label.setPixmap(self.standbyImage)
         standbyMessage = 'Changing tools, please stand by..'
-        self.updateStatusbar( standbyMessage )
+        self.statusBar.showMessage( standbyMessage )
         self.image_label.setText( '...' )
         app.processEvents()
+        _logger.debug('*** exiting App.displayStandby')
         return
 ### # display tool number on GUI
     def displayToolLoaded( self, tool ):
+        _logger.debug('*** calling App.displayToolLoaded')
         if( tool == -1 ):
             standbyMessage = 'No active tool..'
         else:
             standbyMessage = 'T' + str(tool) + ' active..'
-        self.updateStatusbar( standbyMessage )
-        self.updateMessagebar( standbyMessage )
+        self.statusBar.showMessage( standbyMessage )
+        self.image_label.setText( standbyMessage )
         app.processEvents()
+        _logger.debug('*** exiting App.displayToolLoaded')
         return
 
 
@@ -3681,25 +3836,31 @@ class App(QMainWindow):
 ### # update statusBar
     @pyqtSlot(str)
     def updateStatusbar(self, statusCode ):
+        _logger.debug('*** calling App.updateStatusbar')
         self.statusBar.showMessage(statusCode)
         app.processEvents()
+        _logger.debug('*** exiting App.updateStatusbar')
 ### # update MessageBar
     @pyqtSlot(str)
     def updateMessagebar(self, statusCode ):
+        _logger.debug('*** calling App.updateMessagebar')
         self.image_label.setText(statusCode)
         app.processEvents()
+        _logger.debug('*** exiting App.updateMessagebar')
 ### # switch crosshair
     @pyqtSlot(bool)
     def updateCrosshairDisplay( self, crosshair_flag ):
+        _logger.debug('*** calling App.updateCrosshairDisplay')
         self.crosshair_alignment = crosshair_flag
         self.crosshair = crosshair_flag
+        _logger.debug('*** exiting App.updateCrosshairDisplay')
 ### # update image display
     @pyqtSlot(np.ndarray)
-    def update_image(self, cv_img):
+    def updateImage(self, cv_img):
         #self.mutex.lock()
         self.current_frame = cv_img
         # Draw crosshair alignment circle on image if required
-        if( self.crosshair or self.crosshair_alignment ):
+        if( (self.crosshair or self.crosshair_alignment) and (self.crosshair_cp is False) ):
             alpha = 0.8
             beta = 1-alpha
             center = ( int(self._cameraWidth/2), int(self._cameraHeight/2) )
@@ -3729,65 +3890,113 @@ class App(QMainWindow):
             cv_img = cv2.line(cv_img, (center[0],center[1]-int( self._cameraWidth/3 )), (center[0],center[1]+int( self._cameraWidth/3 )), (128, 128, 128), 1)
             cv_img = cv2.line(cv_img, (center[0]-int( self._cameraWidth/3 ),center[1]), (center[0]+int( self._cameraWidth/3 ),center[1]), (128, 128, 128), 1)
             cv_img = cv2.addWeighted(cv_img, 1, cv_img, 0, 0)
-        
+        elif( self.crosshair_cp is True ):
+            # Display placeholder endstop CP capture
+            alpha = 0.8
+            beta = 1-alpha
+            center = ( int(self._cameraWidth/2), int(self._cameraHeight/2) )
+            overlayCircle = cv2.circle( 
+                img=cv_img.copy(), 
+                center=center, 
+                radius=160, 
+                color=(0,255,255),
+                thickness=-1
+            )
+            overlayCircle = cv2.circle( 
+                overlayCircle, 
+                center=center, 
+                radius=161, 
+                color=(0,0,0),
+                thickness=5
+            )
+            overlayCircle = cv2.circle( 
+                overlayCircle, 
+                center=center, 
+                radius=160, 
+                color=(255,255,255),
+                thickness=2
+            )
+            cv_img = cv2.addWeighted(overlayCircle, beta, cv_img, alpha, 0)
+            cv_img = cv2.line(cv_img, (center[0],center[1]-int( self._cameraWidth/3 )), (center[0],center[1]+int( self._cameraWidth/3 )), (128, 128, 128), 1)
+            cv_img = cv2.line(cv_img, (center[0]-int( self._cameraWidth/3 ),center[1]), (center[0]+int( self._cameraWidth/3 ),center[1]), (128, 128, 128), 1)
+            cv_img = cv2.addWeighted(cv_img, 1, cv_img, 0, 0)
         # Updates the image_label with a new opencv image
         qt_img = self.convert_cv_qt(cv_img)
         self.image_label.setPixmap(qt_img)
         app.processEvents()
 ### # update CP label
     @pyqtSlot(object)
-    def update_cpLabel( self, newCoords ):
+    def updateCPLabel( self, newCoords ):
+        _logger.debug('*** calling App.updateCPLabel')
         self.cp_coords = newCoords
         self.cp_string = '( ' + str(self.cp_coords['X']) + ', ' + str(self.cp_coords['Y']) + ' )'
         self.cp_label.setText( '<b>CP:</b> ' + self.cp_string)
         app.processEvents()
+        _logger.debug('*** exiting App.updateCPLabel')
 ### # update saved settings.json
     @pyqtSlot( object )
     def updateSettings( self, settingOptions ):
+        _logger.debug('*** calling App.updateSettings')
         self.options = settingOptions
         self.saveUserSettings()
+        _logger.debug('*** exiting App.updateSettings')
 ### # update active printer URL
     @pyqtSlot( int )
     def updatePrinterURL( self, index ):
+        _logger.debug('*** calling App.updatePrinterURL')
         self.printerURL = self.options['printer'][index]['address']
         self.activePrinter = self.options['printer'][index]
         _logger.info('URL updated to: ' + self.options['printer'][index]['address'])
+        _logger.debug('*** exiting App.updatePrinterURL')
 ### # create a new connection profile from ConnectionSettings event
     @pyqtSlot()
     def createNewConnection( self ):
-        _logger.info('Create a new connection')
+        _logger.debug('*** calling App.createNewConnection')
         self.newPrinter = True
-
+### # update GUI from thread
+    @pyqtSlot()
+    def updateGUI( self ):
+        app.processEvents()
+### # display standby image called from subthread
+    @pyqtSlot()
+    def standbyGUI( self ):
+        self.displayStandby()
 
 ### thread control functions
 ### # start video thread
     def startVideo(self):
+        _logger.debug('*** calling App.startVideo')
         _logger.info( '  .. starting video feed.. ' )
         # create the video capture thread
         self.video_thread = CalibrateNozzles(parentTh=self,numTools=0, cycles=1, align=False)
-        # connect its signal to the update_image slot
+        # connect signals to their respective slots
         self.video_thread.detection_error.connect(self.updateStatusbar)
         self.video_thread.status_update.connect(self.updateStatusbar)
         self.video_thread.message_update.connect(self.updateMessagebar)
-        self.video_thread.change_pixmap_signal.connect(self.update_image)
+        self.video_thread.change_pixmap_signal.connect(self.updateImage)
         self.video_thread.calibration_complete.connect(self.applyCalibration)
         self.video_thread.result_update.connect(self.addCalibrationResult)
         self.video_thread.crosshair_display.connect(self.updateCrosshairDisplay)
-        self.video_thread.update_cpLabel.connect(self.update_cpLabel)
+        self.video_thread.update_cpLabel.connect(self.updateCPLabel)
+        self.video_thread.update_GUI.connect(self.updateGUI)
+        self.video_thread.display_standby.connect(self.standbyGUI)
         # start the thread
         self.video_thread.start()
+        _logger.debug('*** exiting App.startVideo')
 ### # stop video thread
     def stopVideo(self):
+        _logger.debug('*** calling App.stopVideo')
         _logger.info( ' .. stopping video feed..' )
         try:
             if self.video_thread.isRunning():
                 self.video_thread.stop()
         except Exception as vs2:
-            self.updateStatusbar( 'Error 0x03: cannot stop video.' )
-            _logger.error( 'Cannot stop video capture: ' + str(vs2) )
-            _logger.error( 'Capture Offset error: \n' + traceback.format_exc() )
+            self.statusBar.showMessage( 'Error 0x03: cannot stop video.' )
+            _logger.error( 'Cannot stop video capture: ' + traceback.format_exc() )
+        _logger.debug('*** exiting App.stopVideo')
 ### # stop program and exit
     def closeEvent(self, event):
+        _logger.debug('*** calling App.closeEvent')
         try:
             if( self.printer is not None ):
                 self.disconnectFromPrinter()
@@ -3801,14 +4010,14 @@ class App(QMainWindow):
         print()
         print( 'Thank you for using TAMV!' )
         print( 'Check out www.jubilee3d.com' )
-        event.accept()
-        sys.exit(0)
+        _logger.debug('*** exiting App.closeEvent')
+        super( App, self).closeEvent( event )
 ##############################################################################################################################################################
 ##############################################################################################################################################################
 ## Main program
 if __name__=='__main__':
 ### - Setup global debugging flags for imports
-    os.putenv("QT_LOGGING_RULES","qt5ct.debug=false")
+    os.putenv("QT_LOGGING_RULES","qt5ct.debug=true")
     matplotlib.use('Qt5Agg',force=True)
 
 ### Setup argmument parser
