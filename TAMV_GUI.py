@@ -2100,6 +2100,8 @@ class App(QMainWindow):
         )
 ### #  load user parameters
         try:
+            # create config folder if it doesn't exist
+            os.makedirs('./config',exist_ok=True)
             with open( './config/settings.json','r' ) as inputfile:
                 self.options = json.load(inputfile)
         except FileNotFoundError:
