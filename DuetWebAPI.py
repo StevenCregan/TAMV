@@ -365,7 +365,8 @@ class DuetWebAPI:
             r = self.requests.get(URL,timeout=8)
             j = self.json.loads(r.text)
             s=j['firmwareVersion']
-            if s == "3.2":
+            sArray = s.split('.')
+            if int(sArray[0]) == 3:
                 return True
             else:
                 return False
